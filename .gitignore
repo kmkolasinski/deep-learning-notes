@@ -1,1 +1,8 @@
 .ipynb_checkpoints
+omniglot
+models
+__pycache__
+.idea
+*.pkl
+subclasses-omniglot/models
+
