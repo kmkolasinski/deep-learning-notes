@@ -1,9 +1,9 @@
 from pprint import pprint
 import tensorflow as tf
-from . import datasets
+import datasets
 import pickle
-from . import models
-from . import hooks
+import models
+import hooks
 from tqdm import tqdm
 
 batch_size = 32
