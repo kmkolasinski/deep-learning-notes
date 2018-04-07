@@ -1,9 +1,9 @@
 from pprint import pprint
 import tensorflow as tf
-import datasets
+from . import datasets
 import pickle
-import models
-import hooks
+from . import models
+from . import hooks
 from tqdm import tqdm
 
 batch_size = 32
@@ -66,7 +66,7 @@ for epoch in tqdm(range(train_epochs)):
     train_hooks = [
         hooks.get_examples_per_second_hook(batch_size=batch_size),
         #hooks.get_profiler_hook(),
-        hooks.get_logging_tensor_hook(tensors_to_log=[
+        hooks.get_logging_tensor_hook(every_n_iter=10, entensors_to_log=[
             'head_accuracy', 'cross_entropy', 'learning_rate'])
     ]
 
