@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 batch_size = 32
 lr_schedule = [(1, 0.001), (5, 0.002), (5, 0.001), (5, 0.0001)]
-model_dir = '../models/test_model'
+model_dir = '/media/data-disk-slow/jupyter/Research/kkol/deep_learning_notes/subclasses/models/'
 image_shape = [48, 48, 1]
 
 train_input_func, num_train_examples = datasets.get_input_function(
@@ -83,10 +83,10 @@ for epoch in tqdm(range(train_epochs)):
         hooks=train_hooks,
         max_steps=steps_per_epoch)
 
-    print('Starting to evaluate')
-
-    eval_results = classifier.evaluate(
-        input_fn=valid_input_func,
-        steps=steps_per_validation
-    )
-    print(eval_results)
+    # print('Starting to evaluate')
+    #
+    # eval_results = classifier.evaluate(
+    #     input_fn=valid_input_func,
+    #     steps=steps_per_validation
+    # )
+    # print(eval_results)

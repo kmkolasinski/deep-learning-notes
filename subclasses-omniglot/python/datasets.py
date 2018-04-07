@@ -40,11 +40,11 @@ def build_dataset(images_list, image_size, out_name='omniglot_training'):
         'label1': keras.utils.to_categorical(labels_level1).astype(np.float32)
     }
 
-    pickle.dump(training_data, open(f"data/{out_name}.pkl", 'wb'))
+    pickle.dump(training_data, open(f"../data/{out_name}.pkl", 'wb'))
     pickle.dump(classes_level0_mapping,
-                open("data/classes_level0_mapping.pkl", 'wb'))
+                open("../data/classes_level0_mapping.pkl", 'wb'))
     pickle.dump(classes_level1_mapping,
-                open("data/classes_level1_mapping.pkl", 'wb'))
+                open("../data/classes_level1_mapping.pkl", 'wb'))
 
 
 def image_augmentation(image, label0, label1):
