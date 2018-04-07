@@ -83,10 +83,10 @@ for epoch in tqdm(range(train_epochs)):
         hooks=train_hooks,
         max_steps=steps_per_epoch)
 
-    # print('Starting to evaluate')
-    #
-    # eval_results = classifier.evaluate(
-    #     input_fn=valid_input_func,
-    #     steps=steps_per_validation
-    # )
-    # print(eval_results)
+    print('Starting to evaluate')
+
+    eval_results = classifier.evaluate(
+        input_fn=train_input_func,
+        steps=steps_per_validation
+    )
+    print(eval_results)
