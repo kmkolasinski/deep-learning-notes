@@ -9,6 +9,7 @@ from tqdm import tqdm
 batch_size = 32
 lr_schedule = [(1, 0.001), (5, 0.002), (5, 0.001), (5, 0.0001)]
 model_dir = '/media/data-disk-slow/jupyter/Research/kkol/deep_learning_notes/subclasses/models/'
+model_dir = '../models/test_model'
 image_shape = [48, 48, 1]
 
 train_input_func, num_train_examples = datasets.get_input_function(
@@ -58,19 +59,7 @@ run_config = tf.estimator.RunConfig().replace(
     save_checkpoints_secs=1e9,
     session_config=session_config)
 
-
-
-for epoch in tqdm(range(train_epochs)):
-    print(f'Starting a training epoch [{epoch}/{train_epochs}]')
-
-    train_hooks = [
-        hooks.get_examples_per_second_hook(batch_size=batch_size),
-        #hooks.get_profiler_hook(),
-        hooks.get_logging_tensor_hook(every_n_iter=10, entensors_to_log=[
-            'head_accuracy', 'cross_entropy', 'learning_rate'])
-    ]
-
-    classifier = tf.estimator.Estimator(
+classifier = tf.estimator.Estimator(
         model_fn=model_func,
         model_dir=model_dir,
         config=run_config,
@@ -79,17 +68,31 @@ for epoch in tqdm(range(train_epochs)):
             'image_shape': image_shape
         }
     )
+tf.logging.set_verbosity(tf.logging.INFO)
+
+for epoch in tqdm(range(train_epochs)):
+    print(f'Starting a training epoch [{epoch}/{train_epochs}]')
+
+    train_hooks = [
+        hooks.get_examples_per_second_hook(batch_size=batch_size),
+        #hooks.get_profiler_hook(),
+        hooks.get_logging_tensor_hook(every_n_iter=10, tensors_to_log=[
+            'head_accuracy', 'cross_entropy', 'learning_rate'])
+    ]
+
+
+
 
     classifier.train(
         input_fn=train_input_func,
         hooks=train_hooks,
-        max_steps=steps_per_epoch)
+        steps=steps_per_epoch)
 
 
     print('Starting to evaluate')
 
-    eval_results = classifier.evaluate(
-        input_fn=train_input_func,
-        steps=steps_per_validation
-    )
-    print(eval_results)
+    # eval_results = classifier.evaluate(
+    #     input_fn=train_input_func,
+    #     steps=steps_per_validation
+    # )
+    # print(eval_results)
