@@ -1,7 +1,7 @@
 import keras
 from keras import backend as K, Input, Model
 from keras.datasets import mnist
-from keras.layers import Dense
+from keras.layers import Dense, BatchNormalization, Dropout
 from keras.regularizers import l2
 
 
@@ -41,15 +41,14 @@ def get_dataset():
 
 
 def get_mlp(num_layers=3, lantent_size=100, l2_reg=0.0001, activation='relu'):
-    in_vec = Input(shape=[784])
 
+    in_vec = Input(shape=[784])
     x = in_vec
     for i in range(num_layers):
-        x = Dense(
-            lantent_size,
-            activation=activation,
-            kernel_regularizer=l2(l2_reg)
-        )(x)
+        x = Dense(lantent_size, activation=activation,
+                  kernel_regularizer=l2(l2_reg))(x)
+        x = BatchNormalization()(x)
+        x = Dropout(0.2)(x)
 
     y = Dense(10, activation='softmax')(x)
     model = Model(in_vec, y)

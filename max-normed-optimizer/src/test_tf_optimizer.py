@@ -1,24 +1,22 @@
-"""Tests for detection.training.optimizers."""
+"""Tests for tf_optimizers"""
 
-import tensorflow as tf
-import tf_optimizer as optimizers
 import numpy as np
+import tensorflow as tf
+
+import tf_optimizer as optimizers
 
 
 class NormalizedSGDTest(tf.test.TestCase):
 
     def test_run(self):
-        optimizer = optimizers.NormalizedSGD(
+        optimizer = optimizers.AdaptiveNormalizedSGD(
             lr=0.1
         )
-        optimizers_list = [optimizer]
 
         variable = tf.get_variable('var',
                                    initializer=np.zeros([10, 10], np.float32))
 
         loss = tf.reduce_mean(tf.square(variable - 1.0))
-
-
 
         update_op = optimizer.minimize(loss)
         loss_hist = []
@@ -121,7 +119,7 @@ class BarzilaiBorweinNormalizedSGDTest(tf.test.TestCase):
                 _ = sess.run([loss, update_op])
             self.assertEqual(sess.run(optimizer._current_step), 5)
             gk_old_np = sess.run(gk_old)
-            self.assertAllClose(gk_old_np.reshape([-1]), [0.0]*100)
+            self.assertAllClose(gk_old_np.reshape([-1]), [0.0] * 100)
             v_old_np = sess.run(v_old)
             self.assertAllClose(v_old_np.reshape([-1]), [0.0] * 100)
 
@@ -143,9 +141,9 @@ class BarzilaiBorweinNormalizedSGDTest(tf.test.TestCase):
             dtype=tf.float32, initializer=np.zeros([10, 10]).astype(np.float32))
 
         loss = tf.reduce_mean(tf.square(variable - 1.0))
-
+        lr_np = 0.5
         optimizer = optimizers.BarzilaiBorweinNormalizedSGD(
-            lr=0.5, steps=3, lr_max=5.0, lr_min=1e-6, lr_update=0.1,
+            lr=lr_np, steps=3, lr_max=5.0, lr_min=1e-6, lr_update=0.1,
             noise_amplitude=0.0)
 
         update_op = optimizer.minimize(loss)
@@ -155,6 +153,5 @@ class BarzilaiBorweinNormalizedSGDTest(tf.test.TestCase):
             for i in range(100):
                 loss_np, _ = sess.run([loss, update_op])
                 lr_np = sess.run(lr)
-                print(f'{i:3}, {lr_np:10.4}, {loss_np:10.4}')
 
-
+            self.assertTrue(lr_np < 0.5)

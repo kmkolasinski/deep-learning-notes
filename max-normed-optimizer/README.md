@@ -1,0 +1,1 @@
+Max Normalized Gradient Descent Optimizer
