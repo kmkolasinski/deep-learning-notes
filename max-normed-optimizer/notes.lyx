@@ -5,7 +5,13 @@
 \save_transient_properties true
 \origin unavailable
 \textclass article
+\begin_preamble
+\usepackage{algorithmic}
+\end_preamble
 \use_default_options true
+\begin_modules
+algorithm2e
+\end_modules
 \maintain_unincluded_children false
 \language english
 \language_package default
@@ -27,6 +33,7 @@
 \bibtex_command default
 \index_command default
 \paperfontsize default
+\spacing single
 \use_hyperref false
 \papersize default
 \use_geometry false
@@ -70,142 +77,404 @@
 
 \begin_body
 
+\begin_layout Title
+Notes on application of Normalized Gradient Descent approach to Deep Learning
+\end_layout
+
+\begin_layout Author
+Krzysztof Kolasiński
+\begin_inset Foot
+status open
+
+\begin_layout Plain Layout
+email: krzysztof.kolasinski@fornax.ai
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Abstract
+This notes tackle the problem of separating gradient amplitude i.e.
+ step size from the gradient direction.
+ In this notes I describe things I have tried and what was working for me
+ and things which were not.
+ 
+\end_layout
+
 \begin_layout Section
 Gradient descent
 \end_layout
 
 \begin_layout Standard
+We want to solve following optimization problem
 \begin_inset Formula 
 \[
-\mathbf{\boldsymbol{\theta}}_{k+1}=\boldsymbol{\theta}_{k}-\lambda_{k}\frac{\partial\mathcal{L}\left(\boldsymbol{\theta}_{k},\boldsymbol{X}_{k}\right)}{\partial\boldsymbol{\theta}}=\boldsymbol{\theta}_{k}-\lambda_{k}\mathbf{G}_{k}
+\theta^{*}=\underset{\theta}{\mathrm{argmin}}\mathcal{L}\left(\boldsymbol{\theta},\boldsymbol{X}\right),
 \]
 
 \end_inset
 
-
-\end_layout
-
-\begin_layout Standard
 where 
-\begin_inset Formula $\boldsymbol{\theta}_{k}$
+\begin_inset Formula $\boldsymbol{\theta}$
 \end_inset
 
- is the parameter at k-th iteration, 
-\begin_inset Formula $\boldsymbol{X}_{k}$
+ are the model parameters e.g.
+ weight matrices in Neural Network and 
+\begin_inset Formula $\boldsymbol{X}$
 \end_inset
 
- - batch data (labels and targets) at k-th step, 
-\begin_inset Formula $\lambda_{k}$
-\end_inset
-
- gradient descent step, 
+ is our dataset, from which we compute the loss function 
 \begin_inset Formula $\mathcal{L}$
 \end_inset
 
- - loss function.
+.
+ A standard way in Machine Learning is to solve this problem with gradient
+ descent
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\mathbf{\boldsymbol{\theta}}^{(k+1)}=\boldsymbol{\theta}^{(k)}-\lambda^{(k)}\frac{\partial\mathcal{L}\left(\boldsymbol{\theta}^{(k)},\boldsymbol{X}^{(k)}\right)}{\partial\boldsymbol{\theta}}\equiv\boldsymbol{\theta}^{(k)}-\lambda^{(k)}\mathbf{G}^{(k)}
+\]
+
+\end_inset
+
+where 
+\begin_inset Formula $\boldsymbol{\theta}^{(k)}$
+\end_inset
+
+ are the model parameters at k-th iteration, 
+\begin_inset Formula $\boldsymbol{X}^{(k)}$
+\end_inset
+
+ is the batch of data (e.g.
+ images and the labels) at k-th step, 
+\begin_inset Formula $\lambda^{(k)}$
+\end_inset
+
+ gradient descent step size i.e.
+ learning rate, which in that case may depend on the iteration.
+ 
+\end_layout
+
+\begin_layout Paragraph
+Potential problem with standard formulation of the Gradient Descent: 
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+Too small gradients
+\series default
+ - if gradients amplitude is small, the effective learning rate is also
+ small.
+ This is ok when we are close to the minimum, but in some cases it may result
+ with so-called vanishing gradients problem and learning may significantly
+ slow down or even stop.
+ 
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+Too large gradients
+\series default
+ - this is an opposite case when gradients may explode.
+ 
+\end_layout
+
+\begin_layout Standard
+Those two points show that learning step is somehow double-parametrized
+ since the effective step in 
+\begin_inset Formula $\theta$
+\end_inset
+
+ space will depend on: a) the value of 
+\begin_inset Formula $\lambda_{k}$
+\end_inset
+
+ and b) gradient norm.
+ Gradient normalization helps to reduce this potentially problematic double-para
+metrization of the effective step size.
 \end_layout
 
 \begin_layout Section
+Motivation on 1D examples
+\end_layout
+
+\begin_layout Standard
+Newton method for exponential function and quadratic function
+\end_layout
+
+\begin_layout Section
+Normalized Gradient Descent
+\end_layout
+
+\begin_layout Standard
+Normalized Gradient Descent (NGD) is a natural modification of the standard
+ method in the optimization problems, namely in every step we compute
+\begin_inset Formula 
+\[
+\mathbf{\boldsymbol{\theta}}^{(k+1)}=\boldsymbol{\theta}^{(k)}-\lambda^{(k)}\frac{\mathbf{G}^{(k)}}{\left\Vert \mathbf{G}^{(k)}\right\Vert },
+\]
+
+\end_inset
+
+where 
+\begin_inset Formula $\left\Vert \mathbf{G}^{(k)}\right\Vert >0$
+\end_inset
+
+ represents some general normalization function.
+ In particular one can try to use:
+\end_layout
+
+\begin_layout Itemize
 \begin_inset Formula $L_{\mathrm{\infty}}$
 \end_inset
 
- normalized gradient descent
+ norm, which normalizes the gradients by 
+\begin_inset Formula 
+\[
+\left\Vert \mathbf{G}^{(k)}\right\Vert _{\infty}=\underset{v}{\max}\left|G_{v}^{(k)}\right|,
+\]
+
+\end_inset
+
+where 
+\begin_inset Formula $G_{v}^{(k)}$
+\end_inset
+
+ denotes the 
+\begin_inset Formula $v$
+\end_inset
+
+-th element of the 
+\begin_inset Formula $\mathbf{G}^{(k)}$
+\end_inset
+
+ vector.
+ Intuitively, this normalization guarantees that the maximum change of the
+ parameters is equal to the learning rate i.e.
+ 
+\begin_inset Formula $\underset{v}{\max}\left|\mathbf{\theta}_{v}^{(k+1)}-\mathbf{\theta}_{v}^{(k)}\right|=\lambda^{(k)}$
+\end_inset
+
+.
+ 
+\end_layout
+
+\begin_layout Itemize
+\begin_inset Formula $L_{2}$
+\end_inset
+
+ norm, which normalizes the gradients by the standard euclidean norm 
+\begin_inset Formula 
+\[
+\left\Vert \mathbf{G}^{(k)}\right\Vert _{2}=\sqrt{\sum_{v}\left[G_{v}^{(k)}\right]^{2}},
+\]
+
+\end_inset
+
+This normalization makes that the speed of change of the parameters is always
+ proportional to 
+\begin_inset Formula $\lambda^{(k)}$
+\end_inset
+
+.
+ This normalization is widely used in the literature [CYTOWANIA].
+ However, In the context of deep neural network it means that the layers
+ with bigger weight matrices will get updated with smaller amplitudes then
+ smaller layers e.g.
+ bias vector.
+ For example let us consider layer with scalar weight 
+\begin_inset Formula $\omega$
+\end_inset
+
+, hence the gradient to this layer will be also a scalar 
+\begin_inset Formula $g_{\omega}$
+\end_inset
+
+, the descent update is 
+\begin_inset Formula 
+\[
+\omega^{(k+1)}=\omega^{(k)}-\lambda^{(k)}\mathrm{sign}\left(g_{\omega}\right),
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+Now, let us consider N dimensional gradient vector of form 
+\begin_inset Formula $\mathbf{g}=\left[g,\ldots,g\right],$
+\end_inset
+
+ which 
+\begin_inset Formula $L_{2}$
+\end_inset
+
+ norm 
+\begin_inset Formula $\left\Vert \mathbf{g}\right\Vert _{2}=\sqrt{N}g$
+\end_inset
+
+, hence the gradient descent step is 
+\begin_inset Formula 
+\[
+\mathbf{w}^{(k+1)}=\mathbf{w}^{(k)}-\frac{\lambda^{(k)}}{\sqrt{N}}\frac{\mathbf{g}}{g},
+\]
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula $L_{\infty}$
+the effective step for this case is then 
+\begin_inset Formula $\sqrt{N}$
 \end_inset
 
- norm of the vector
+ times smaller.
+ This problem may be partially solved by redefining norm as 
+\begin_inset Formula $\sqrt{\frac{1}{N}\sum_{v}\left(G_{v}^{(k)}\right)^{2}}$
+\end_inset
+
+.
+ However, I did not try this approach.
+ 
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+Standard deviation normalization, defined as 
 \begin_inset Formula 
 \[
-\left\Vert \mathbf{G}_{k}\right\Vert _{\infty}=\max\left|\mathbf{G}_{k}\right|
+\left\Vert \mathbf{G}^{(k)}\right\Vert _{\mathrm{std}}=\sqrt{\frac{1}{N}\sum_{v}\left(G_{v}^{(k)}-\bar{G}^{(k)}\right)^{2}},
 \]
 
 \end_inset
 
 
-\begin_inset Formula $L_{\infty}$
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+where 
+\begin_inset Formula $\bar{G}^{(k)}=\frac{1}{N}\sum_{v}G_{v}^{(k)}$
 \end_inset
 
- normalized gradient descent is defined as 
-\begin_inset Formula 
-\[
-\mathbf{\boldsymbol{\theta}}_{k+1}=\boldsymbol{\theta}_{k}-\lambda_{k}\frac{\mathbf{G}_{k}}{\left\Vert \mathbf{G}_{k}\right\Vert _{\infty}+\varepsilon}.
-\]
-
+.
+ Surprisingly, this normalization seems to work in some problems better
+ than 
+\begin_inset Formula $L_{\mathrm{\infty}}$
 \end_inset
 
+.
+\end_layout
 
+\end_deeper
+\begin_layout Paragraph
+Problems with NGD
+\end_layout
+
+\begin_layout Itemize
+One has take care about the value of the 
+\begin_inset Formula $\lambda^{(k)}$
+\end_inset
+
+, especially in order to obtain the convergence the learning rate must be
+ zero (or very small) at the end of the training.
+\end_layout
+
+\begin_layout Itemize
+I found 
+\begin_inset Formula $L_{2}$
+\end_inset
+
+ less efficient than others, probably because of the mentioned problem.
 \end_layout
 
 \begin_layout Section
-Online iterative steepest gradient descent
+An online iterative steepest gradient descent
 \end_layout
 
 \begin_layout Standard
-Steepest gradient descent look for solution of following problem:
+Steepest gradient descent looks for a solution of the following problem:
+ at each step of the gradient descent find such value of the learning rate
+ which minimizes the loss function at most, i.e.
+\begin_inset Formula 
+\begin{equation}
+\lambda^{(k)}=\underset{\lambda}{\mathrm{argmin}}\mathcal{L}\left(\boldsymbol{\theta}^{(k)}-\lambda\frac{\mathbf{G}^{(k)}}{\left\Vert \mathbf{G}^{(k)}\right\Vert },\boldsymbol{X}^{(k)}\right),\label{eq:steepest}
+\end{equation}
+
+\end_inset
+
+For the brevity we define a normalized gradient as
 \begin_inset Formula 
 \[
-\lambda_{k}=\underset{\lambda}{\mathrm{argmin}}\mathcal{L}\left(\boldsymbol{\theta}_{k}-\lambda\frac{\mathbf{G}_{k}}{\left\Vert \mathbf{G}_{k}\right\Vert _{\infty}+\varepsilon},\boldsymbol{X}_{k}\right),
+\widehat{\mathbf{G}}^{(k)}=\frac{\mathbf{G}^{(k)}}{\left\Vert \mathbf{G}^{(k)}\right\Vert }.
 \]
 
 \end_inset
 
+The exact solution of the Eq.
+ 
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:steepest"
 
-\end_layout
+\end_inset
 
-\begin_layout Standard
-Let
+ at each iteration is impossible, since in most cases there is not analytic
+ solution for this problem.
+ We are going to use the gradient descent to solve the Eq.
+ 
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:steepest"
+
+\end_inset
+
+.
+ We are going to make a large assumption that the optimal value of the 
+\begin_inset Formula $\lambda^{(k)}$
+\end_inset
+
+ does not vary significantly between batches.
+ Let us note that the expression 
+\begin_inset Formula $\boldsymbol{\theta}^{(k)}-\lambda\widehat{\mathbf{G}}^{(k)}$
+\end_inset
+
+ represents state of the parameters in the next step, hence for the batch
+ at k+1 step, the loss function is given by
 \begin_inset Formula 
 \[
-\widehat{\mathbf{G}}_{k}=\frac{\mathbf{G}_{k}}{\left\Vert \mathbf{G}_{k}\right\Vert _{\infty}+\varepsilon},
+\lambda^{(k)}=\underset{\lambda}{\mathrm{argmin}}\mathcal{L}\left(\boldsymbol{\theta}^{(k)}-\lambda\widehat{\mathbf{G}}^{(k)},\boldsymbol{X}^{(k+1)}\right)\equiv\underset{\lambda}{\mathrm{argmin}}\mathcal{L}\left(\boldsymbol{\theta}^{(k+1)}(\lambda),\boldsymbol{X}^{(k+1)}\right),
 \]
 
 \end_inset
 
-
-\end_layout
-
-\begin_layout Standard
-Expression 
-\begin_inset Formula $\boldsymbol{\theta}_{k}-\lambda\widehat{\mathbf{G}}_{k}$
+The derivative of 
+\begin_inset Formula $\mathcal{L}\left(\boldsymbol{\theta}^{(k+1)}(\lambda),\boldsymbol{X}^{(k+1)}\right)$
 \end_inset
 
- represents state of the parameters in the next step, hence we use batch
- data from the next step:
-\begin_inset Formula 
-\[
-\lambda_{k}=\underset{\lambda}{\mathrm{argmin}}\mathcal{L}\left(\boldsymbol{\theta}_{k}-\lambda\widehat{\mathbf{G}}_{k},\boldsymbol{X}_{k+1}\right),
-\]
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-and apply gradient descent on expression above to find best 
+ w.r.t 
 \begin_inset Formula $\lambda$
 \end_inset
 
-, we have 
-\begin_inset Formula $\boldsymbol{\theta}_{k+1}(\lambda)=\boldsymbol{\theta}_{k}-\lambda\widehat{\mathbf{G}}_{k}$
-\end_inset
-
-, then
+ is then
 \begin_inset Formula 
 \begin{align*}
-\frac{\partial\mathcal{L}\left(\boldsymbol{\theta}_{k+1}(\lambda),\boldsymbol{X}_{k+1}\right)}{\partial\lambda} & =\frac{\partial\mathcal{L}\left(\boldsymbol{\theta}_{k+1}(\lambda),\boldsymbol{X}_{k+1}\right)^{T}}{\partial\boldsymbol{\theta}}\frac{\partial\left(\boldsymbol{\theta}_{k}-\lambda\widehat{\mathbf{G}}_{k}\right)}{\partial\lambda}\\
- & =-\frac{\partial\mathcal{L}\left(\boldsymbol{\theta}_{k+1}(\lambda),\boldsymbol{X}_{k+1}\right)^{T}}{\partial\boldsymbol{\theta}}\widehat{\mathbf{G}}_{k}=-\mathbf{G}_{k+1}^{T}\widehat{\mathbf{G}}_{k}
+\frac{\partial\mathcal{L}\left(\boldsymbol{\theta}^{(k+1)}(\lambda),\boldsymbol{X}^{(k+1)}\right)}{\partial\lambda} & =\frac{\partial\mathcal{L}\left(\boldsymbol{\theta}^{(k+1)}(\lambda),\boldsymbol{X}^{(k+1)}\right)^{T}}{\partial\boldsymbol{\theta}}\frac{\partial\left(\boldsymbol{\theta}^{(k)}-\lambda\widehat{\mathbf{G}}^{(k)}\right)}{\partial\lambda}\\
+ & =-\frac{\partial\mathcal{L}\left(\boldsymbol{\theta}^{(k+1)}(\lambda),\boldsymbol{X}^{(k+1)}\right)^{T}}{\partial\boldsymbol{\theta}}\widehat{\mathbf{G}}^{(k)}=-\mathbf{G}^{(k+1)T}\widehat{\mathbf{G}}^{(k)}
 \end{align*}
 
 \end_inset
 
-
-\end_layout
-
-\begin_layout Standard
 Hence the gradient descent for the 
 \begin_inset Formula $\lambda$
 \end_inset
@@ -213,15 +482,11 @@ Hence the gradient descent for the
  parameter is:
 \begin_inset Formula 
 \[
-\lambda_{k+1}=\lambda_{k}-\beta\left(-\mathbf{G}_{k+1}^{T}\widehat{\mathbf{G}}_{k}\right)=\lambda_{k}+\beta\mathbf{G}_{k}^{T}\widehat{\mathbf{G}}_{k-1}.
+\lambda^{(k+1)}=\lambda^{(k)}-\beta\left(-\mathbf{G}^{(k)T}\widehat{\mathbf{G}}^{(k-1)}\right)=\lambda^{(k)}+\beta\mathbf{G}^{(k)T}\widehat{\mathbf{G}}^{(k-1)}.
 \]
 
 \end_inset
 
-
-\end_layout
-
-\begin_layout Standard
 where 
 \begin_inset Formula $\beta$
 \end_inset
@@ -231,22 +496,38 @@ where
 \end_inset
 
 .
+ The interpretation of the above is following, if 
+\begin_inset Formula $\mathbf{G}^{(k)T}\widehat{\mathbf{G}}^{(k-1)}>0$
+\end_inset
+
+ it means that gradients between two steps are pointing more or less in
+ the same direction, in such case we can increase learning rate to speed
+ up the convergence.
+ However if 
+\begin_inset Formula $\mathbf{G}^{(k)T}\widehat{\mathbf{G}}^{(k-1)}<0$
+\end_inset
+
+ this may suggest that we have overshoot the minimum and we have to change
+ direction.
+ In such case the learning rate will be decreased to reduce the overshoot
+ problem.
+ 
 \end_layout
 
 \begin_layout Subsection
-Potential problems:
+Potential problems with proposed method
 \end_layout
 
-\begin_layout Standard
+\begin_layout Itemize
 First of all, from the above one can see that 
 \begin_inset Formula $\lambda$
 \end_inset
 
- can be smaller than 0.
+ can be smaller than zero.
  Hence we propose following exponential update
 \begin_inset Formula 
 \[
-\lambda_{k+1}=\lambda_{k}\left(1+\beta\mathbf{G}_{k}^{T}\widehat{\mathbf{G}}_{k-1}\right),
+\lambda^{(k+1)}=\lambda^{(k)}\left(1+\beta\mathbf{G}^{(k)T}\widehat{\mathbf{G}}^{(k-1)}\right),
 \]
 
 \end_inset
@@ -254,9 +535,10 @@ First of all, from the above one can see that
 
 \end_layout
 
+\begin_deeper
 \begin_layout Standard
 and we constrain the update to following condition 
-\begin_inset Formula $-1<\beta\mathbf{G}_{k}^{T}\widehat{\mathbf{G}}_{k-1}<1$
+\begin_inset Formula $-1<\beta\mathbf{G}^{(k)T}\widehat{\mathbf{G}}^{(k-1)}<1$
 \end_inset
 
 .
@@ -264,19 +546,15 @@ and we constrain the update to following condition
 \begin_inset Formula $\beta$
 \end_inset
 
- is a hyperparameter we normalize 
-\begin_inset Formula $\mathbf{G}/\left\Vert \mathbf{G}\right\Vert $
+ is a hyperparameter, we can normalize 
+\begin_inset Formula $\mathbf{G}/\left\Vert \mathbf{G}\right\Vert _{2}$
 \end_inset
 
-, where 
-\begin_inset Formula $\left\Vert .\right\Vert $
-\end_inset
-
- is a euclidean norm.
+.
  Thus we have final update rule
 \begin_inset Formula 
 \[
-\lambda_{k+1}=\lambda_{k}\left(1+\beta\frac{\mathbf{G}_{k}^{T}\mathbf{G}_{k-1}}{\left\Vert \mathbf{G}_{k}\right\Vert \left\Vert \mathbf{G}_{k-1}\right\Vert }\right),
+\lambda^{(k+1)}=\lambda^{(k)}\left(1+\beta\frac{\mathbf{G}^{(k)T}\mathbf{G}^{(k-1)}}{\left\Vert \mathbf{G}^{(k)}\right\Vert _{2}\left\Vert \mathbf{G}^{(k-1)}\right\Vert _{2}}\right),
 \]
 
 \end_inset
@@ -287,123 +565,301 @@ and
 
 .
  Then we clip learning rate to certain range: 
-\begin_inset Formula $\lambda_{k+1}=\mathrm{clip\left(\lambda_{k+1},\lambda_{\min},\lambda_{\max}\right)}$
+\begin_inset Formula $\lambda^{(k+1)}=\mathrm{clip\left(\lambda^{(k+1)},\lambda_{\min},\lambda_{\max}\right)}$
 \end_inset
 
-, this helps to avoid explosion of lr.
-\end_layout
-
-\begin_layout Standard
-Problems:
-\end_layout
-
-\begin_layout Itemize
-We have introduced additional parameter.
-\end_layout
-
-\begin_layout Itemize
-Learning rate may be too small.
- 
-\end_layout
-
-\begin_layout Itemize
-How to incorporate momentum into the equations above ??? 
-\end_layout
-
-\begin_layout Itemize
-Can be show that obtained value for lr is somehow optimal? Some bound for
- it? 
-\end_layout
-
-\begin_layout Subsection
-Assumptions
-\end_layout
-
-\begin_layout Standard
-Direction of the gradients does not change significantly between batches,
- such that the sign of the correlation between two subsequent gradients
- 
-\begin_inset Formula $\mathbf{G}_{k}^{T}\widehat{\mathbf{G}}_{k-1}$
+, this helps to avoid explosion of 
+\begin_inset Formula $\lambda$
 \end_inset
 
- is meaningful.
- 
+.
 \end_layout
 
-\begin_layout Standard
-Optimal value of 
+\end_deeper
+\begin_layout Itemize
+Due to the stochastic nature of the SGD the correlation between two subsequent
+ gradients may be disturbed by the randomness of the update process.
+ We have observed that in real examples (CIFAR10 or MNIST) the value of
+ the 
 \begin_inset Formula $\lambda_{k}$
 \end_inset
 
- changes slowly with 
-\begin_inset Formula $k$
+ decreased exponentially over time, which suggest that in most cases the
+ correlation 
+\begin_inset Formula $\mathbf{G}_{k}^{T}\mathbf{G}_{k-1}$
+\end_inset
+
+ is negative.
+ I have tried to solve this problem by using Barzilai-Borwein approach proposed
+ in Ref.
+ [https://arxiv.org/pdf/1605.04131.pdf], where the authors computes the exponential
+ averages of gradients over certain number of samples.
+ However this approach does not take into account that parameters of the
+ model change during the optimization and the computed averages may not
+ be meaningful.
+ The Tensorflow implementation of the proposed Barzilai-Borwein Step Size
+ method is available, however it may contain bugs.
+\end_layout
+
+\begin_layout Itemize
+Possible solution for that is to better estimate gradients at each step.
+ I have tried to increase the batch size but without success.
+ 
+\end_layout
+
+\begin_layout Standard
+Because of the second problem the I have decided to use the manual learning
+ rate scheduling.
+ This approach combined with normalized gradients gave me the best results.
+\end_layout
+
+\begin_layout Section
+Final algorithm
+\end_layout
+
+\begin_layout Standard
+In the final implementation each layer of the Neural Network has its own
+ 
+\begin_inset Formula $\lambda_{k}$
 \end_inset
 
 .
  
 \end_layout
 
-\begin_layout Subsection
-Convergence
-\end_layout
-
 \begin_layout Standard
-Can we prove convergence of this method? 
-\end_layout
+\begin_inset Float algorithm
+wide false
+sideways false
+status open
 
-\begin_layout Section
-Final algorithm:
-\end_layout
+\begin_layout Plain Layout
+\begin_inset Caption Standard
 
-\begin_layout Itemize
-Normalized gradient descent update:
+\begin_layout Plain Layout
+Normalized gradient descent with adaptive learning rate
 \end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\[
-\mathbf{\boldsymbol{\theta}}_{k+1}=\boldsymbol{\theta}_{k}-\lambda_{k}\frac{\mathbf{G}_{k}}{\left\Vert \mathbf{G}_{k}\right\Vert _{\infty}+\varepsilon}.
-\]
 
 \end_inset
 
 
 \end_layout
 
-\begin_layout Itemize
-Learning rate update:
-\begin_inset Formula 
-\[
-\lambda_{k+1}=\mathrm{clip}\left[\lambda_{k}\left(1+\beta\frac{\mathbf{G}_{k}^{T}\mathbf{G}_{k-1}}{\left\Vert \mathbf{G}_{k}\right\Vert \left\Vert \mathbf{G}_{k-1}\right\Vert }\right),\lambda_{\min},\lambda_{\max}\right],
-\]
+\begin_layout Plain Layout
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+begin{algorithmic}
+\end_layout
 
 \end_inset
 
 
 \end_layout
 
-\begin_layout Itemize
-Initial conditions: 
-\begin_inset Formula $\mathbf{G}_{-1}=\mathbf{0}$
+\begin_layout Plain Layout
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+STATE
+\end_layout
+
 \end_inset
 
-, and example setting for my test case 
-\begin_inset Formula $\beta=0.01$
+ 
+\series bold
+Input:
+\series default
+ A loss function 
+\begin_inset Formula $\mathcal{L}\left(\boldsymbol{\theta},\boldsymbol{X}\right)$
+\end_inset
+
+ initial values of the model parameters 
+\begin_inset Formula $\boldsymbol{\theta}_{l}^{(0)}$
+\end_inset
+
+ (
+\begin_inset Formula $l$
+\end_inset
+
+ denotes the index of the layer), initial value of learning rate for each
+ layer in the model 
+\begin_inset Formula $\lambda_{l}^{(0)}$
 \end_inset
 
 , 
-\begin_inset Formula $\lambda_{0}=0.1$
+\begin_inset Formula $\mathbf{G}_{l}^{(-1)}=\mathbf{0}$
 \end_inset
 
 , 
-\begin_inset Formula $\lambda_{\min}=1e-5$
+\begin_inset Formula $N$
+\end_inset
+
+ number of gradient descent steps and 
+\begin_inset Formula $\lambda_{\min}=1e-6$
 \end_inset
 
 , 
 \begin_inset Formula $\lambda_{\max}=0.1$
 \end_inset
 
+.
+ 
+\begin_inset Formula $\left\Vert .\right\Vert $
+\end_inset
 
+ is a selected normalizing function.
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+FOR
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+
+\begin_inset Formula $k=0$
+\end_inset
+
+ 
+\series bold
+to
+\series default
+ 
+\begin_inset Formula $N$
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ 
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+STATE
+\end_layout
+
+\end_inset
+
+ Update parameters with 
+\begin_inset Formula 
+\[
+\mathbf{\boldsymbol{\theta}}_{l}^{(k+1)}=\boldsymbol{\theta}_{l}^{(k)}-\lambda_{l}^{(k)}\frac{\mathbf{G}_{l}^{(k)}}{\left\Vert \mathbf{G}_{l}^{(k)}\right\Vert }.
+\]
+
+\end_inset
+
+ 
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+STATE
+\end_layout
+
+\end_inset
+
+ Update learning rate with 
+\begin_inset Formula 
+\[
+\lambda_{l}^{(k+1)}=\mathrm{clip}\left[\lambda_{l}^{(k)}\left(1+\beta\frac{\mathbf{G}_{l}^{(k)T}\mathbf{G}_{l}^{(k-1)}}{\left\Vert \mathbf{G}_{l}^{(k)}\right\Vert _{2}\left\Vert \mathbf{G}_{l}^{(k-1)}\right\Vert _{2}}\right),\lambda_{\min},\lambda_{\max}\right].
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+ENDFOR
+\end_layout
+
+\end_inset
+
+ 
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+end{algorithmic}
+\end_layout
+
+\end_inset
+
+ 
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+Including momentum term
+\end_layout
+
+\begin_layout Standard
+This is tricky
 \end_layout
 
 \end_body
