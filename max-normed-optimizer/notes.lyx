@@ -78,7 +78,8 @@ algorithm2e
 \begin_body
 
 \begin_layout Title
-Notes on application of Normalized Gradient Descent approach to Deep Learning
+Notes on application of the Normalized Gradient Descent approach to Deep
+ Learning
 \end_layout
 
 \begin_layout Author
@@ -131,7 +132,7 @@ where
 
 .
  A standard way in Machine Learning is to solve this problem with gradient
- descent
+ descent (usually a stochastic variant)
 \end_layout
 
 \begin_layout Standard
@@ -169,8 +170,8 @@ Potential problem with standard formulation of the Gradient Descent:
 \series bold
 Too small gradients
 \series default
- - if gradients amplitude is small, the effective learning rate is also
- small.
+ - if gradients amplitude is too small, the effective learning rate is also
+ very small.
  This is ok when we are close to the minimum, but in some cases it may result
  with so-called vanishing gradients problem and learning may significantly
  slow down or even stop.
@@ -201,12 +202,76 @@ Those two points show that learning step is somehow double-parametrized
 metrization of the effective step size.
 \end_layout
 
-\begin_layout Section
-Motivation on 1D examples
+\begin_layout Standard
+In the second order methods the learning rate is replaced by the inverse
+ of the Hessian 
+\begin_inset Formula $\mathbf{H}\left(\mathcal{L}^{(k)}\right)$
+\end_inset
+
+ matrix like in Newton's method.
+\begin_inset Formula 
+\[
+\mathbf{\boldsymbol{\theta}}^{(k+1)}=\boldsymbol{\theta}^{(k)}-\mathbf{H}\left(\mathcal{L}^{(k)}\right)^{-1}\mathbf{G}^{(k)},
+\]
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
-Newton method for exponential function and quadratic function
+or its approximations.
+ 
+\end_layout
+
+\begin_layout Standard
+In 1D Hessian matrix is just a scalar second derivative of the loss function.
+ Let us consider simple exponential loss function like 
+\begin_inset Formula $\mathcal{L}(x)=e^{-\gamma x}$
+\end_inset
+
+.
+ The gradient descent for such problem is following
+\begin_inset Formula 
+\[
+x^{(k+1)}=x^{(k)}+\lambda\gamma e^{-\gamma x^{(k)}},
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+hence when 
+\begin_inset Formula $x\ll0$
+\end_inset
+
+ the step size will be extremely large and when 
+\begin_inset Formula $x\gg0$
+\end_inset
+
+ the step size will be almost zero.
+ However when using Newton's method we get following update: 
+\begin_inset Formula 
+\[
+x^{(k+1)}=x^{(k)}-\lambda\frac{-\gamma e^{-\gamma x^{(k)}}}{\gamma^{2}e^{-\gamma x^{(k)}}}=x^{(k)}+\frac{\lambda}{\gamma},
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+step size does not depends on the current state of 
+\begin_inset Formula $x^{(k)}$
+\end_inset
+
+.
+ So the multiplication by the inverse of Hessian has normalizing property
+ in that setup.
+ 
 \end_layout
 
 \begin_layout Section
@@ -344,7 +409,6 @@ the effective step for this case is then
 \end_inset
 
 .
- However, I did not try this approach.
  
 \end_layout
 
@@ -592,8 +656,15 @@ Due to the stochastic nature of the SGD the correlation between two subsequent
  is negative.
  I have tried to solve this problem by using Barzilai-Borwein approach proposed
  in Ref.
- [https://arxiv.org/pdf/1605.04131.pdf], where the authors computes the exponential
- averages of gradients over certain number of samples.
+ 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "bb1"
+
+\end_inset
+
+, where the authors computes the exponential averages of gradients over
+ certain number of samples.
  However this approach does not take into account that parameters of the
  model change during the optimization and the computed averages may not
  be meaningful.
@@ -624,7 +695,7 @@ In the final implementation each layer of the Neural Network has its own
 \end_inset
 
 .
- 
+ See Algorithm 1.
 \end_layout
 
 \begin_layout Standard
@@ -654,6 +725,22 @@ status open
 
 \backslash
 begin{algorithmic}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+scriptsize
 \end_layout
 
 \end_inset
@@ -825,6 +912,26 @@ status collapsed
 
 
 \backslash
+STATE
+\end_layout
+
+\end_inset
+
+ Set 
+\begin_inset Formula $\mathbf{G}_{l}^{(k-1)}=\mathbf{G}_{l}^{(k)}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
 ENDFOR
 \end_layout
 
@@ -835,7 +942,7 @@ ENDFOR
 
 \begin_layout Plain Layout
 \begin_inset ERT
-status collapsed
+status open
 
 \begin_layout Plain Layout
 
@@ -859,7 +966,75 @@ Including momentum term
 \end_layout
 
 \begin_layout Standard
-This is tricky
+When adding momentum to the proposed normalized gradients one has to remember
+ that the adaptive learning rate depends on the gradients correlation 
+\begin_inset Formula $\mathbf{G}^{(k)T}\mathbf{G}^{(k-1)}$
+\end_inset
+
+.
+ Hence, computing this term on averaged gradients is prohibited, since the
+ correlation of running averages will be always positive and learning rate
+ will grow exponentially.
+ Momentum term is added in following way:
+\begin_inset Formula 
+\[
+\mathbf{V}^{(k)}=m^{(k)}\mathbf{V}^{(k-1)}+\mathbf{G}^{(k)}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\mathbf{\boldsymbol{\theta}}^{(k+1)}=\boldsymbol{\theta}^{(k)}-\lambda^{(k)}\frac{\mathbf{V}^{(k)}}{\left\Vert \mathbf{V}^{(k)}\right\Vert },
+\]
+
+\end_inset
+
+but the adaptive learning rate is using not current gradients 
+\begin_inset Formula $\mathbf{G}^{(k)}$
+\end_inset
+
+ instead of 
+\begin_inset Formula $\mathbf{V}^{(k)}$
+\end_inset
+
+.
+ Note that momentum term can be learned in similar fashion as learning rate,
+ hence we put explicit k dependency on 
+\begin_inset Formula $m^{(k)}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Section
+Things which were not working
+\end_layout
+
+\begin_layout Itemize
+adaptive learning rate seemed to work only for non stochastic setup.
+ When applied to the Neural network, the learning rate was decreasing monotonica
+lly resulting in slower training than with manual scheduling.
+ 
+\end_layout
+
+\begin_layout Itemize
+Same conclusions for the momentum term.
+ When using normalized gradient descent we have observed that adding momentum
+ term does not bring any advantages when training in a stochastic way.
+ The best result were obtained without momentum and adaptive learning rate.
+\end_layout
+
+\begin_layout Bibliography
+\begin_inset CommandInset bibitem
+LatexCommand bibitem
+key "bb1"
+
+\end_inset
+
+Barzilai-Borwein Step Size for Stochastic Gradient Descent, Conghui Tan,
+ Shiqian Ma, Yu-Hong Dai, Yuqiu Qian, (2016) https://arxiv.org/pdf/1605.04131.pdf
 \end_layout
 
 \end_body
