@@ -1,8 +1,94 @@
-from typing import Union, Optional
+from typing import Union, Optional, Callable
 
 import tensorflow as tf
 
 _EPSILON = 1e-6
+
+
+def max_normalize(grad: tf.Tensor) -> tf.Tensor:
+    g_max = tf.reduce_max(tf.abs(grad))
+    norm = _EPSILON + g_max
+    return grad / norm
+
+
+def std_normalize(grad: tf.Tensor) -> tf.Tensor:
+    std = tf.keras.backend.std(grad) + _EPSILON
+    return grad / std
+
+
+def l2_normalize(grad: tf.Tensor) -> tf.Tensor:
+    return tf.nn.l2_normalize(grad)
+
+
+def avg_l2_normalize(grad: tf.Tensor) -> tf.Tensor:
+    norm = tf.sqrt(tf.reduce_mean(tf.square(grad))) + _EPSILON
+    return grad / norm
+
+
+_NORMS = {
+    'max': max_normalize,
+    'l2': l2_normalize,
+    'std': std_normalize,
+    'avg_l2': avg_l2_normalize,
+}
+
+
+class NormalizedSGD(tf.train.Optimizer):
+    """A simplified implementation of normalized Stochastic gradient descent.
+    In every step gradient `Grad` is normalized by selected norm.
+
+    @@__init__
+    """
+    def __init__(
+            self,
+            lr: Union[float, tf.Tensor],
+            norm: Union[str, Callable[[tf.Tensor], tf.Tensor]],
+            use_locking: bool = False,
+            name: str = "NormalizedSGD"
+    ) -> None:
+        """Optimizer constructor.
+
+        Args:
+            lr: learning rate value or tensor
+            norm: one of 'max', 'l2', 'std', 'avg_l2' or callable which takes
+                gradient and returns a normalized gradient
+            use_locking: Bool. If True apply use locks to prevent concurrent
+                updates to variables.
+            name: A non-empty string.  The name to use for accumulators created
+                for the optimizer.
+        """
+        super(NormalizedSGD, self).__init__(use_locking, name)
+        self._lr = lr
+        if type(norm) == str:
+            if norm not in _NORMS:
+                raise ValueError(f'Provided norm `{norm}` must'
+                                 f' be one of `{_NORMS.keys()}`.')
+            self._norm_fn = _NORMS[norm]
+        elif callable(norm):
+            self._norm_fn = norm
+        else:
+            raise ValueError('Norm must be either a string or callable')
+
+        # Tensor versions of the constructor arguments, created in _prepare().
+        self._lr_t = None
+
+    def _prepare(self):
+        self._lr_t = tf.convert_to_tensor(self._lr, name="learning_rate")
+
+    def _apply_dense(self, grad: tf.Tensor, var: tf.Variable) -> tf.Operation:
+        """Add ops to apply dense gradients to `var`.
+
+        Args:
+            grad: A gradient `Tensor`.
+            var: A `Variable` object.
+
+        Returns:
+            An `Operation`.
+        """
+        lr_t = tf.cast(self._lr_t, var.dtype.base_dtype)
+        update_grad = lr_t * self._norm_fn(grad)
+
+        return tf.assign_sub(var, update_grad)
 
 
 class LmaxNormalizedSGD(tf.train.Optimizer):
