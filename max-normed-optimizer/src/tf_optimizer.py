@@ -11,6 +11,13 @@ def max_normalize(grad: tf.Tensor) -> tf.Tensor:
     return grad / norm
 
 
+def min_max_normalize(grad: tf.Tensor) -> tf.Tensor:
+    g_max = tf.abs(tf.reduce_max(grad))
+    g_min = tf.abs(tf.reduce_min(grad))
+    norm = _EPSILON + (g_max + g_min)/2
+    return grad / norm
+
+
 def std_normalize(grad: tf.Tensor) -> tf.Tensor:
     std = tf.keras.backend.std(grad) + _EPSILON
     return grad / std
@@ -27,6 +34,7 @@ def avg_l2_normalize(grad: tf.Tensor) -> tf.Tensor:
 
 _NORMS = {
     'max': max_normalize,
+    'min_max': min_max_normalize,
     'l2': l2_normalize,
     'std': std_normalize,
     'avg_l2': avg_l2_normalize,
