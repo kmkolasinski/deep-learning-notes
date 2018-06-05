@@ -1,4 +1,4 @@
-# Notes on application of the Normalized Gradient Descent approach to Deep Learning
+# Notes on the application of the Normalized Gradient Descent approach to Deep Learning
 
 Normalized gradient descent decouples the gradient norm from its direction.
 In the simplest setup it just normalizes the gradient and multiply it
