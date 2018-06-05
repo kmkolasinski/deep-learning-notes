@@ -74,7 +74,7 @@ Notes:
 
 ![img](img/adaptive_sgd.png)
 
-### Comparision with Adam and SGD with momentum=0.9 for different initial values of the learning rate.
+### Comparison with Adam and SGD (momentum=0.9) for different initial values of the learning rate.
 
 When using adaptive method, the initial value of the learning rate should not
 be as much important. Check the fig a) where NSGD - denotes the normalized
@@ -94,7 +94,7 @@ Model:
 
 Notes:
 * Adaptive learning rate was not working, as discussed in my notes.
-* Momentum was not helping
+* Momentum was not helping.
 * Plain max normalization is used to achieve the best result
   and manual learning rate scheduling.
 
@@ -117,10 +117,10 @@ Notes:
 * Adam, and Normalized gradients train much faster than used in the Keras demo RMSprop
 optimizer. The authors report 79% accuracy after 60 epochs. Here we reach 82% in 45 epochs.
 * Adaptive learning rate was not working, as discussed in my notes.
-* Momentum was not helping.
-* Plain std normalization is used to achieve the best result
+* Momentum was not working.
+* Plain `std` normalization is used to achieve the best result
   and manual learning rate scheduling. Max normalization was performing a
-  little worse in that case. Maybe lower learning rate are required to
+  worse in that case. Maybe lower learning rate are required to
   get the best result.
 
 ### Comparision with Adam and SGD with momentum=0.9
