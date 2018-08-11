@@ -1,0 +1,14 @@
+h5py==2.7.1
+itsdangerous==0.24
+Keras==2.0.6
+keras-tqdm==2.0.1
+matplotlib==2.0.2
+natsort==5.0.2
+notebook==5.4.1
+numexpr==2.6.2
+numpy==1.13.0
+pandas==0.20.3
+pandocfilters==1.4.1
+plotly==2.0.11
+tensorflow-gpu==1.2.1
+tqdm==4.11.2
