@@ -4,14 +4,13 @@ The presentation covers the problem of Normalizing Flows.
 Content:
 
 * Introduction and motivations
-* Tensorflow Bijectors API 
-* Few notebooks which shows how to implement Normalizing Flows in Tensorboard. 
+* Tensorflow Bijectors API examples
+* Few notebooks which shows how to implement Normalizing Flows in Tensorboar e.g simple implementation MADE
 
 
-# References:
+# Some references:
 
-1. ![MAF](https://arxiv.org/pdf/1705.07057.pdf)
-2. ![MADE](https://arxiv.org/pdf/1502.03509.pdf)
-3. ![IAF](https://arxiv.org/pdf/1606.04934.pdf)
-4. ![Variational Inference with NFs](https://arxiv.org/pdf/1505.05770.pdf)
-
+1. [MADE: Masked Autoencoder for Distribution Estimation (2015)](https://arxiv.org/abs/1502.03509)
+2. [Variational Inference with Normalizing Flows (2015)](https://arxiv.org/abs/1505.05770)
+3. [Improving Variational Inference with Inverse Autoregressive Flow (2016)](https://arxiv.org/abs/1606.04934)
+4. [Masked Autoregressive Flow for Density Estimation (2017)](https://arxiv.org/abs/1705.07057)
