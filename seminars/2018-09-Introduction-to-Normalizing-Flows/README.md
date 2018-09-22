@@ -5,7 +5,7 @@ Content:
 
 * Introduction and motivations
 * Tensorflow Bijectors API examples
-* Few notebooks which shows how to implement Normalizing Flows in Tensorflow e.g simple implementation MADE
+* Few notebooks which show how to implement Normalizing Flows in Tensorflow e.g simple implementation MADE
 
 
 # Some references:
