@@ -1,0 +1,3 @@
+[
+  "test_nn.py::TestLayers::test_combine_squeeze_and_factor_layers_conv"
+]
