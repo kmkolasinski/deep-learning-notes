@@ -220,6 +220,8 @@ class FlowLayer:
         self._forward_outputs = []
         self._backward_inputs = []
         self._backward_outputs = []
+        self._current_forward_logdet: tf.Tensor = 0.0
+        self._current_backward_logdet: tf.Tensor = 0.0
         self.build()
 
     def build(self):
@@ -284,6 +286,7 @@ class SqueezingLayer(FlowLayer):
         x = tf.depth_to_space(y, 2)
         if z is not None:
             z = tf.depth_to_space(z, 2)
+
         return x, logdet, z
 
 
@@ -439,39 +442,144 @@ def actnorm_scale(name, x, scale=1., logdet=None, logscale_factor=3., batch_vari
         return x
 
 
-class ActnormLayer(FlowLayer):
-    def __init__(self, input_shape, **kwargs):
-        super().__init__(**kwargs)
-        assert len(input_shape) == 2 or len(input_shape) == 4
-        self._input_shape = input_shape
-        self._bias_t: tf.Variable = None
-        self._scale_t: tf.Variable = None
+class _ActnormBaseLayer(FlowLayer):
+    def __init__(
+            self,
+            input_shape: Optional[Tuple[int, int, int, int]] = None,
+            **kwargs
+    ):
+        # input_shape use it whenever you know the input shape
+        if input_shape is not None:
+            # do some checks
+            assert len(input_shape) == 2 or len(input_shape) == 4
+        else:
+            self._input_shape = input_shape
 
-    def get_ddi_init_ops(self):
-        assert len(self._forward_inputs) == 1
-        x, logdet, z = self._forward_inputs[0]
+        super().__init__(**kwargs)
+
+    @property
+    def variable_shape(self) -> Tuple[int, ...]:
+        shape = None
+        if len(self._input_shape) == 2:
+            shape = (1, self._input_shape[1])
+        elif len(self._input_shape) == 4:
+            shape = (1, 1, 1, self._input_shape[3])
+        return shape
+
+    @property
+    def forward_output_moments(self) -> Tuple[tf.Tensor, tf.Tensor]:
+        assert len(self._forward_outputs) == 1
+        x, logdet, z = self._forward_outputs[0]
         x_mean = None
+        x_var = None
+
         if len(self._input_shape) == 2:
             x_mean = tf.reduce_mean(x, [0], keepdims=True)
+            x_var = tf.reduce_mean((x - x_mean) ** 2, [0], keepdims=True)
+
         elif len(self._input_shape) == 4:
             x_mean = tf.reduce_mean(x, [0, 1, 2], keepdims=True)
+            x_var = tf.reduce_mean((x - x_mean) ** 2, [0, 1, 2], keepdims=True)
+        else:
+            raise ValueError("Unknown shape")
 
-        bias_assign_op = tf.assign(self._bias_t, -x_mean)
+        return x_mean, x_var
+
+
+class ActnormBiasLayer(_ActnormBaseLayer):
+    def __init__(
+            self,
+            input_shape: Optional[Tuple[int, int, int, int]] = None,
+            **kwargs
+    ):
+        super().__init__(input_shape=input_shape, **kwargs)
+        self._bias_t: tf.Variable = None
+
+    def get_ddi_init_ops(self, num_init_iterations: int = 0):
+        x_mean, _ = self.forward_output_moments
+        # initialize bias
+        n = num_init_iterations
+        omega = tf.to_float(np.exp(-min(1, n)/max(1, n)))
+        new_bias = self._bias_t * (1 - omega) - omega * x_mean
+        bias_assign_op = tf.assign_add(self._bias_t, new_bias, name='bias_assign')
+
         return bias_assign_op
 
     def build(self):
-        bias_shape = None
-        if len(self._input_shape) == 2:
-            bias_shape = (1, self._input_shape[1])
-        elif len(self._input_shape) == 4:
-            bias_shape = (1, 1, 1, self._input_shape[3])
+        if self._input_shape is None:
+            return
 
-        self._bias_t = tf.get_variable("bias", bias_shape, tf.float32)
+        self._bias_t = tf.get_variable(
+            "bias", self.variable_shape, tf.float32, initializer=tf.zeros_initializer()
+        )
 
     def forward(self, x, logdet, z, is_training: bool = True):
+        if self._input_shape is None:
+            self._input_shape = K.int_shape(x)
+            self.build()
+
         y = x + self._bias_t
         return y, logdet, z
 
     def backward(self, y, logdet, z, is_training: bool = True):
         x = y - self._bias_t
         return x, logdet, z
+
+
+class ActnormScaleLayer(_ActnormBaseLayer):
+    def __init__(
+            self,
+            input_shape: Optional[Tuple[int, int, int, int]] = None,
+            scale: float = 1.0,
+            **kwargs
+    ):
+        super().__init__(input_shape=input_shape, **kwargs)
+
+        self._scale = scale
+        self._log_scale_t: tf.Variable = None
+
+    def get_ddi_init_ops(self, num_init_iterations: int = 0):
+        _, x_var = self.forward_output_moments
+
+        # derived for iterative initialization
+        var = self._log_scale_t + tf.log(self._scale / (tf.sqrt(x_var) + 1e-6))
+
+        n = num_init_iterations
+        omega = tf.to_float(np.exp(-min(1, n) / max(1, n)))
+        new_scale = self._log_scale_t * (1 - omega) + omega * var
+
+        log_scale_assign_op = tf.assign(
+            self._log_scale_t, new_scale, name='log_scale_assign'
+        )
+        return log_scale_assign_op
+
+    def build(self):
+        if self._input_shape is None:
+            return
+        self._log_scale_t = tf.get_variable(
+            "log_scale", self.variable_shape, tf.float32, initializer=tf.zeros_initializer())
+
+    def forward(self, x, logdet, z, is_training: bool = True):
+        if self._input_shape is None:
+            self._input_shape = K.int_shape(x)
+            self.build()
+
+        y = x * tf.exp(self._log_scale_t)
+
+        logdet_factor = 1
+        if len(self._input_shape) == 2:
+            logdet_factor = 1
+        elif len(self._input_shape) == 4:
+            logdet_factor = self._input_shape[1] * self._input_shape[2]
+
+        dlogdet = logdet_factor * tf.reduce_sum(self._log_scale_t)
+        self._current_forward_logdet = dlogdet
+
+        return y, logdet + dlogdet, z
+
+    def backward(self, y, logdet, z, is_training: bool = True):
+
+        x = y * tf.exp(- self._log_scale_t)
+        self._current_backward_logdet = - self._current_forward_logdet
+        dlogdet = self._current_backward_logdet
+        return x, logdet + dlogdet, z
