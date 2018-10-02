@@ -1,7 +1,32 @@
-import real_nvp_nn as nn
+from typing import Callable, Optional, Dict
+
+import flow_layers as fl
 import tensorflow as tf
 import numpy as np
 from tensorflow.contrib import framework as tf_framework
+K = tf.keras.backend
+keras = tf.keras
+import tensorflow.contrib.layers as tf_layers
+from tensorflow.python.ops import template as template_ops
+
+
+def _shift_and_log_scale_fn_template(name):
+
+    def _shift_and_log_scale_fn(x: tf.Tensor):
+        shape = K.int_shape(x)
+        num_channels = shape[3]
+        # nn definition
+        h = tf_layers.conv2d(x, num_outputs=num_channels, kernel_size=3)
+        h = tf_layers.conv2d(h, num_outputs=num_channels // 2, kernel_size=3)
+        # create shift and log_scale
+        shift = tf_layers.conv2d(h, num_outputs=num_channels, kernel_size=3)
+        log_scale = tf_layers.conv2d(
+            h, num_outputs=num_channels, kernel_size=3, activation_fn=None
+        )
+        log_scale = tf.clip_by_value(log_scale, -15.0, 15.0)
+        return shift, log_scale
+
+    return template_ops.make_template(name, _shift_and_log_scale_fn)
 
 
 class TestLayers(tf.test.TestCase):
@@ -9,7 +34,7 @@ class TestLayers(tf.test.TestCase):
         images = np.random.rand(8, 32, 32, 1)
         images = tf.to_float(images)
 
-        x, logdet, z = nn.InputLayer(images)
+        x, logdet, z = fl.InputLayer(images)
 
         self.assertEqual(images, x)
         self.assertEqual(logdet.shape.as_list(), [8])
@@ -17,8 +42,8 @@ class TestLayers(tf.test.TestCase):
 
     def forward_inverse(
         self,
-        flow: nn.FlowLayer,
-        inputs: nn.FlowData,
+        flow: fl.FlowLayer,
+        inputs: fl.FlowData,
         feed_dict=None,
         atol: float = 1e-6,
     ):
@@ -33,14 +58,44 @@ class TestLayers(tf.test.TestCase):
                     c_np, cprim_np = sess.run([c, cprim], feed_dict=feed_dict)
                     self.assertAllClose(c_np, cprim_np, atol=atol)
 
+    def try_to_train_identity_layer(
+            self,
+            layer: fl.FlowLayer,
+            flow: fl.FlowData,
+            feed_dict_fn: Optional[Callable[[], Dict[tf.Tensor, np.ndarray]]] = None,
+            sess: Optional[tf.Session] = None,
+            post_init_fn: Optional[Callable[[tf.Session], None]] = None
+    ):
+        x, logdet, z = flow
+        new_flow = layer(flow, forward=True, is_training=True)
+        x_rec, logdet_rec, z_rec = new_flow
+        loss = tf.losses.mean_squared_error(x, x_rec)
+        opt = tf.train.MomentumOptimizer(0.1, 0.9)
+        opt_op = opt.minimize(loss)
+
+        sess = tf.Session() if sess is None else sess
+        sess.run(tf.global_variables_initializer())
+        if post_init_fn is not None:
+            post_init_fn(sess)
+        losses = []
+        for i in range(50):
+            if feed_dict_fn is not None:
+                feed_dict = feed_dict_fn()
+            else:
+                feed_dict = None
+            loss_np, _ = sess.run([loss, opt_op], feed_dict=feed_dict)
+            losses.append(loss_np)
+
+        self.assertGreater(losses[0], losses[-1])
+
     def test_logitify_layer_conv(self):
         np.random.seed(52321)
         images_np = np.random.rand(8, 32, 32, 1)
         images = tf.to_float(images_np)
 
-        flow = nn.InputLayer(images)
+        flow = fl.InputLayer(images)
 
-        layer = nn.LogitifyImage()
+        layer = fl.LogitifyImage()
         self.forward_inverse(layer, flow, atol=0.01)
 
         x, logdet, z = flow
@@ -68,9 +123,9 @@ class TestLayers(tf.test.TestCase):
         images = np.random.rand(8, 32, 32, 1)
         images = tf.to_float(images)
 
-        flow = nn.InputLayer(images)
+        flow = fl.InputLayer(images)
 
-        layer = nn.SqueezingLayer()
+        layer = fl.SqueezingLayer()
         self.forward_inverse(layer, flow)
 
         new_flow = layer(flow, forward=True)
@@ -83,10 +138,10 @@ class TestLayers(tf.test.TestCase):
         images_np = np.random.rand(8, 32, 32, 16)
         images = tf.to_float(images_np)
 
-        flow = nn.InputLayer(images)
-        layer = nn.FactorOutLayer()
+        flow = fl.InputLayer(images)
+        layer = fl.FactorOutLayer()
         self.forward_inverse(layer, flow)
-        with tf_framework.arg_scope([nn.FlowLayer.__call__], forward=True):
+        with tf_framework.arg_scope([fl.FlowLayer.__call__], forward=True):
             new_flow = layer(flow)
         x, logdet, z = new_flow
 
@@ -107,18 +162,18 @@ class TestLayers(tf.test.TestCase):
         images_np = np.random.rand(8, 32, 32, 1)
         images = tf.to_float(images_np)
 
-        flow = nn.InputLayer(images)
+        flow = fl.InputLayer(images)
         # in comments are output shapes
         layers = [
-            nn.SqueezingLayer(),  # x=[8, 16, 16, 4]
-            nn.FactorOutLayer(),  # x=[8, 16, 16, 2]
-            nn.SqueezingLayer(),  # x=[8, 8, 8, 8]
-            nn.FactorOutLayer(),  # x=[8, 8, 8, 4] z=[8, 8, 8, 12]
+            fl.SqueezingLayer(),  # x=[8, 16, 16, 4]
+            fl.FactorOutLayer(),  # x=[8, 16, 16, 2]
+            fl.SqueezingLayer(),  # x=[8, 8, 8, 8]
+            fl.FactorOutLayer(),  # x=[8, 8, 8, 4] z=[8, 8, 8, 12]
         ]
 
-        chain = nn.ChainLayer(layers=layers)
+        chain = fl.ChainLayer(layers=layers)
         print()
-        with tf_framework.arg_scope([nn.FlowLayer.__call__], forward=True):
+        with tf_framework.arg_scope([fl.FlowLayer.__call__], forward=True):
             new_flow = chain(flow)
             with self.test_session() as sess:
                 x, logdet, z = sess.run(new_flow)
@@ -132,9 +187,9 @@ class TestLayers(tf.test.TestCase):
         images_np = np.random.rand(8, 32, 32, 3)
         images = tf.to_float(images_np)
 
-        flow = nn.InputLayer(images)
+        flow = fl.InputLayer(images)
 
-        layer = nn.ActnormBiasLayer()
+        layer = fl.ActnormBiasLayer()
         new_flow = layer(flow, forward=True)
         x, logdet, z = new_flow
 
@@ -154,9 +209,9 @@ class TestLayers(tf.test.TestCase):
         images_np = np.random.rand(8, 32, 32, 3)
         images = tf.to_float(images_np)
 
-        flow = nn.InputLayer(images)
+        flow = fl.InputLayer(images)
 
-        layer = nn.ActnormBiasLayer()
+        layer = fl.ActnormBiasLayer()
 
         with self.assertRaises(AssertionError):
             layer.get_ddi_init_ops()
@@ -187,9 +242,9 @@ class TestLayers(tf.test.TestCase):
 
         images_ph = tf.placeholder(tf.float32, shape=[8, 32, 32, 3])
 
-        flow = nn.InputLayer(images_ph)
+        flow = fl.InputLayer(images_ph)
 
-        layer = nn.ActnormBiasLayer()
+        layer = fl.ActnormBiasLayer()
 
         new_flow = layer(flow, forward=True)
         x, logdet, z = new_flow
@@ -228,9 +283,9 @@ class TestLayers(tf.test.TestCase):
         images_np = np.random.rand(8, 32, 32, 3)
         images = tf.to_float(images_np)
 
-        flow = nn.InputLayer(images)
+        flow = fl.InputLayer(images)
 
-        layer = nn.ActnormScaleLayer()
+        layer = fl.ActnormScaleLayer()
         new_flow = layer(flow, forward=True)
         x, logdet, z = new_flow
 
@@ -254,9 +309,9 @@ class TestLayers(tf.test.TestCase):
         images_np = np.random.rand(8, 32, 32, 3)
         images = tf.to_float(images_np)
 
-        flow = nn.InputLayer(images)
+        flow = fl.InputLayer(images)
 
-        layer = nn.ActnormScaleLayer()
+        layer = fl.ActnormScaleLayer()
 
         with self.assertRaises(AssertionError):
             layer.get_ddi_init_ops()
@@ -290,9 +345,9 @@ class TestLayers(tf.test.TestCase):
         images_np = np.random.rand(8, 32, 32, 3)
         images = tf.to_float(images_np)
 
-        flow = nn.InputLayer(images)
+        flow = fl.InputLayer(images)
 
-        layer = nn.ActnormScaleLayer(scale=np.sqrt(2))
+        layer = fl.ActnormScaleLayer(scale=np.sqrt(2))
 
         with self.assertRaises(AssertionError):
             layer.get_ddi_init_ops()
@@ -324,9 +379,9 @@ class TestLayers(tf.test.TestCase):
         np.random.seed(52321)
         images_ph = tf.placeholder(tf.float32, shape=[8, 32, 32, 3])
 
-        flow = nn.InputLayer(images_ph)
+        flow = fl.InputLayer(images_ph)
 
-        layer = nn.ActnormScaleLayer(scale=np.sqrt(np.pi))
+        layer = fl.ActnormScaleLayer(scale=np.sqrt(np.pi))
 
         new_flow = layer(flow, forward=True)
         x, logdet, z = new_flow
@@ -359,9 +414,9 @@ class TestLayers(tf.test.TestCase):
         images_np = np.random.rand(8, 32, 32, 3)
         images = tf.to_float(images_np)
 
-        flow = nn.InputLayer(images)
+        flow = fl.InputLayer(images)
 
-        layer = nn.ActnormLayer()
+        layer = fl.ActnormLayer()
         new_flow = layer(flow, forward=True)
         x, logdet, z = new_flow
 
@@ -379,9 +434,9 @@ class TestLayers(tf.test.TestCase):
         images_np = np.random.rand(8, 32, 32, 3)
         images = tf.to_float(images_np)
 
-        flow = nn.InputLayer(images)
+        flow = fl.InputLayer(images)
 
-        layer = nn.ActnormLayer(scale=np.sqrt(np.pi))
+        layer = fl.ActnormLayer(scale=np.sqrt(np.pi))
 
         with self.assertRaises(AssertionError):
             layer.get_ddi_init_ops()
@@ -413,9 +468,9 @@ class TestLayers(tf.test.TestCase):
         np.random.seed(52321)
         images_ph = tf.placeholder(tf.float32, shape=[8, 32, 32, 3])
 
-        flow = nn.InputLayer(images_ph)
+        flow = fl.InputLayer(images_ph)
 
-        layer = nn.ActnormLayer(scale=np.sqrt(np.pi))
+        layer = fl.ActnormLayer(scale=np.sqrt(np.pi))
 
         new_flow = layer(flow, forward=True)
         x, logdet, z = new_flow
@@ -442,3 +497,87 @@ class TestLayers(tf.test.TestCase):
         self.forward_inverse(
             layer, flow, feed_dict={images_ph: np.random.rand(8, 32, 32, 3)}
         )
+
+        def feed_dict_fn():
+            return {images_ph: np.random.rand(8, 32, 32, 3)}
+
+        def post_init_fn(sess):
+            init_ops = layer.get_ddi_init_ops()
+            sess.run(init_ops, {images_ph: np.random.rand(8, 32, 32, 3)})
+
+        with tf.variable_scope("TestTrain"):
+            layer = fl.ActnormLayer(scale=np.sqrt(np.pi))
+            self.try_to_train_identity_layer(
+                layer, flow,
+                feed_dict_fn=feed_dict_fn,
+                post_init_fn=post_init_fn
+            )
+
+    def test_invertible_conv1x1_no_lu_decomp(self):
+
+        images_np = np.random.rand(8, 32, 32, 16)
+        images = tf.to_float(images_np)
+
+        flow = fl.InputLayer(images)
+
+        layer = fl.InvertibleConv1x1Layer(use_lu_decomposition=False)
+        new_flow = layer(flow, forward=True)
+        x, logdet, z = new_flow
+
+        self.assertEqual(z, None)
+        with self.test_session() as sess:
+            sess.run(tf.global_variables_initializer())
+            x, logdet = sess.run([x, logdet])
+            self.assertEqual(x.shape, images_np.shape)
+
+        self.forward_inverse(layer, flow)
+
+    def test_invertible_conv1x1_lu_decomp(self):
+
+        images_np = np.random.rand(8, 32, 32, 16)
+        images = tf.to_float(images_np)
+
+        flow = fl.InputLayer(images)
+
+        layer = fl.InvertibleConv1x1Layer(use_lu_decomposition=True)
+        new_flow = layer(flow, forward=True)
+        x, logdet, z = new_flow
+
+        self.assertEqual(z, None)
+        with self.test_session() as sess:
+            sess.run(tf.global_variables_initializer())
+            x, logdet = sess.run([x, logdet])
+            self.assertEqual(x.shape, images_np.shape)
+
+        self.forward_inverse(layer, flow)
+
+    def test_invertible_conv1x1_learn_identity(self):
+
+        images = tf.random_normal([8, 32, 32, 16])
+        flow = fl.InputLayer(images)
+        layer = fl.InvertibleConv1x1Layer(use_lu_decomposition=True)
+        self.try_to_train_identity_layer(layer, flow)
+
+        layer = fl.InvertibleConv1x1Layer(use_lu_decomposition=False)
+        self.try_to_train_identity_layer(layer, flow)
+
+    def test_simple_affine_coupling_layer(self):
+
+        images_np = np.random.rand(8, 32, 32, 16)
+        images = tf.to_float(images_np)
+        flow = fl.InputLayer(images)
+        layer = fl.AffineCouplingLayer(_shift_and_log_scale_fn_template("test"))
+        new_flow = layer(flow, forward=True)
+        x, logdet, z = new_flow
+
+        self.assertEqual(z, None)
+        with self.test_session() as sess:
+            sess.run(tf.global_variables_initializer())
+            x, logdet = sess.run([x, logdet])
+            self.assertEqual(x.shape, images_np.shape)
+            self.assertEqual(logdet.shape, (8,))
+
+        self.forward_inverse(layer, flow)
+
+        layer = fl.AffineCouplingLayer(_shift_and_log_scale_fn_template("train"))
+        self.try_to_train_identity_layer(layer, flow)
