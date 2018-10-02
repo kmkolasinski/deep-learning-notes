@@ -2,6 +2,7 @@ from typing import Optional, Tuple, List
 
 import numpy as np
 import tensorflow as tf
+
 K = tf.keras.backend
 keras = tf.keras
 from tensorflow.contrib.framework.python.ops import add_arg_scope, arg_scope
@@ -208,9 +209,11 @@ def print_shapes(name: str, forward: bool, flow: FlowData):
         z_shape = "[None]"
     else:
         z_shape = f"{flow[2].shape.as_list()}"
-    print(f"{name} "
-          f"{x_name}={flow[0].shape.as_list()} "
-          f"logdet={flow[1].shape.as_list()} z={z_shape}")
+    print(
+        f"{name} "
+        f"{x_name}={flow[0].shape.as_list()} "
+        f"logdet={flow[1].shape.as_list()} z={z_shape}"
+    )
 
 
 class FlowLayer:
@@ -234,7 +237,9 @@ class FlowLayer:
         raise NotImplementedError()
 
     @add_arg_scope
-    def __call__(self, inputs: FlowData, forward: bool, is_training: bool = True) -> FlowData:
+    def __call__(
+        self, inputs: FlowData, forward: bool, is_training: bool = True
+    ) -> FlowData:
         assert isinstance(inputs, tuple)
         if forward:
             with tf.name_scope(f"{type(self).__name__}Forward"):
@@ -253,7 +258,7 @@ class FlowLayer:
 
 
 def InputLayer(x: tf.Tensor) -> FlowData:
-    """Initialize input flow"""
+    """Initialize input flow x is an image"""
     input_shape = K.int_shape(x)
     assert len(input_shape) == 2 or len(input_shape) == 4
 
@@ -266,8 +271,39 @@ def InputLayer(x: tf.Tensor) -> FlowData:
     return x, logdet, z
 
 
+class LogitifyImage(FlowLayer):
+    """Apply Tapani Raiko's dequantization and express image in terms of logits"""
+
+    # TODO add jacobian transformation
+    def forward(self, x, logdet, z, is_training: bool = True):
+
+        """x should be in range [0, 1]"""
+        # corrupt data (Tapani Raiko's dequantization)
+        xs = K.int_shape(x)
+        assert len(xs) == 4
+
+        y = x * 255.0
+        corruption_level = 1.0
+        y = y + corruption_level * tf.random_uniform(xs)
+        y = y / (255.0 + corruption_level)
+        # model logit instead of the x itself
+        alpha = 1e-5
+        y = y * (1 - alpha) + alpha * 0.5
+        new_y = tf.log(y) - tf.log(1 - y)
+        dlogdet = tf.reduce_sum(-tf.log(y) - tf.log(1 - y), [1, 2, 3])
+
+        return new_y, logdet + dlogdet, z
+
+    def backward(self, y, logdet, z, is_training: bool = True):
+        denominator = 1 + tf.exp(-y)
+        x = 1 / denominator
+        dlogdet = tf.reduce_sum(-2 * tf.log(denominator) - y, [1, 2, 3])
+        return x, logdet + dlogdet, z
+
+
 class SqueezingLayer(FlowLayer):
     """Change dimensionality of the layer """
+
     def forward(self, x, logdet, z, is_training: bool = True):
 
         xs = K.int_shape(x)
@@ -295,6 +331,7 @@ class FactorOutLayer(FlowLayer):
     The layer that factors out half of the variables
     directly to the latent space.
     """
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.split_size = None
@@ -356,97 +393,9 @@ class ChainLayer(FlowLayer):
         return flow
 
 
-@add_arg_scope
-def get_variable_ddi(name, shape, initial_value, dtype=tf.float32, init=False, trainable=True):
-    w = tf.get_variable(name, shape, dtype, None, trainable=trainable)
-    if init:
-        w = w.assign(initial_value)
-        with tf.control_dependencies([w]):
-            return w
-    return w
-
-
-@add_arg_scope
-def actnorm(name, x, scale=1., logdet=None, logscale_factor=3., batch_variance=False, reverse=False, init=False, trainable=True):
-    if arg_scope([get_variable_ddi], trainable=trainable):
-        if not reverse:
-            x = actnorm_center(name+"_center", x, reverse)
-            x = actnorm_scale(name+"_scale", x, scale, logdet,
-                              logscale_factor, batch_variance, reverse, init)
-            if logdet != None:
-                x, logdet = x
-        else:
-            x = actnorm_scale(name + "_scale", x, scale, logdet,
-                              logscale_factor, batch_variance, reverse, init)
-            if logdet != None:
-                x, logdet = x
-            x = actnorm_center(name+"_center", x, reverse)
-        if logdet != None:
-            return x, logdet
-        return x
-
-
-@add_arg_scope
-def actnorm_center(name, x, reverse=False):
-    shape = x.get_shape()
-    with tf.variable_scope(name):
-        assert len(shape) == 2 or len(shape) == 4
-        if len(shape) == 2:
-            x_mean = tf.reduce_mean(x, [0], keepdims=True)
-            b = get_variable_ddi(
-                "b", (1, int_shape(x)[1]), initial_value=-x_mean)
-        elif len(shape) == 4:
-            x_mean = tf.reduce_mean(x, [0, 1, 2], keepdims=True)
-            b = get_variable_ddi(
-                "b", (1, 1, 1, int_shape(x)[3]), initial_value=-x_mean)
-
-        if not reverse:
-            x += b
-        else:
-            x -= b
-
-        return x
-
-
-@add_arg_scope
-def actnorm_scale(name, x, scale=1., logdet=None, logscale_factor=3., batch_variance=False, reverse=False, init=False, trainable=True):
-    shape = x.get_shape()
-    with tf.variable_scope(name), arg_scope([get_variable_ddi], trainable=trainable):
-        assert len(shape) == 2 or len(shape) == 4
-        if len(shape) == 2:
-            x_var = tf.reduce_mean(x**2, [0], keepdims=True)
-            logdet_factor = 1
-            _shape = (1, int_shape(x)[1])
-
-        elif len(shape) == 4:
-            x_var = tf.reduce_mean(x**2, [0, 1, 2], keepdims=True)
-            logdet_factor = int(shape[1])*int(shape[2])
-            _shape = (1, 1, 1, int_shape(x)[3])
-
-        if batch_variance:
-            x_var = tf.reduce_mean(x**2, keepdims=True)
-
-        logs = get_variable_ddi("logs", _shape, initial_value=tf.log(
-            scale/(tf.sqrt(x_var)+1e-6)) / logscale_factor) * logscale_factor
-        if not reverse:
-            x = x * tf.exp(logs)
-        else:
-            x = x * tf.exp(-logs)
-
-        if logdet != None:
-            dlogdet = tf.reduce_sum(logs) * logdet_factor
-            if reverse:
-                dlogdet *= -1
-            return x, logdet + dlogdet
-
-        return x
-
-
 class _ActnormBaseLayer(FlowLayer):
     def __init__(
-            self,
-            input_shape: Optional[Tuple[int, int, int, int]] = None,
-            **kwargs
+        self, input_shape: Optional[Tuple[int, int, int, int]] = None, **kwargs
     ):
         # input_shape use it whenever you know the input shape
         if input_shape is not None:
@@ -470,8 +419,6 @@ class _ActnormBaseLayer(FlowLayer):
     def forward_output_moments(self) -> Tuple[tf.Tensor, tf.Tensor]:
         assert len(self._forward_outputs) == 1
         x, logdet, z = self._forward_outputs[0]
-        x_mean = None
-        x_var = None
 
         if len(self._input_shape) == 2:
             x_mean = tf.reduce_mean(x, [0], keepdims=True)
@@ -488,9 +435,7 @@ class _ActnormBaseLayer(FlowLayer):
 
 class ActnormBiasLayer(_ActnormBaseLayer):
     def __init__(
-            self,
-            input_shape: Optional[Tuple[int, int, int, int]] = None,
-            **kwargs
+        self, input_shape: Optional[Tuple[int, int, int, int]] = None, **kwargs
     ):
         super().__init__(input_shape=input_shape, **kwargs)
         self._bias_t: tf.Variable = None
@@ -499,9 +444,9 @@ class ActnormBiasLayer(_ActnormBaseLayer):
         x_mean, _ = self.forward_output_moments
         # initialize bias
         n = num_init_iterations
-        omega = tf.to_float(np.exp(-min(1, n)/max(1, n)))
+        omega = tf.to_float(np.exp(-min(1, n) / max(1, n)))
         new_bias = self._bias_t * (1 - omega) - omega * x_mean
-        bias_assign_op = tf.assign_add(self._bias_t, new_bias, name='bias_assign')
+        bias_assign_op = tf.assign_add(self._bias_t, new_bias, name="bias_assign")
 
         return bias_assign_op
 
@@ -528,10 +473,10 @@ class ActnormBiasLayer(_ActnormBaseLayer):
 
 class ActnormScaleLayer(_ActnormBaseLayer):
     def __init__(
-            self,
-            input_shape: Optional[Tuple[int, int, int, int]] = None,
-            scale: float = 1.0,
-            **kwargs
+        self,
+        input_shape: Optional[Tuple[int, int, int, int]] = None,
+        scale: float = 1.0,
+        **kwargs,
     ):
         super().__init__(input_shape=input_shape, **kwargs)
 
@@ -549,7 +494,7 @@ class ActnormScaleLayer(_ActnormBaseLayer):
         new_scale = self._log_scale_t * (1 - omega) + omega * var
 
         log_scale_assign_op = tf.assign(
-            self._log_scale_t, new_scale, name='log_scale_assign'
+            self._log_scale_t, new_scale, name="log_scale_assign"
         )
         return log_scale_assign_op
 
@@ -557,7 +502,11 @@ class ActnormScaleLayer(_ActnormBaseLayer):
         if self._input_shape is None:
             return
         self._log_scale_t = tf.get_variable(
-            "log_scale", self.variable_shape, tf.float32, initializer=tf.zeros_initializer())
+            "log_scale",
+            self.variable_shape,
+            tf.float32,
+            initializer=tf.zeros_initializer(),
+        )
 
     def forward(self, x, logdet, z, is_training: bool = True):
         if self._input_shape is None:
@@ -579,7 +528,140 @@ class ActnormScaleLayer(_ActnormBaseLayer):
 
     def backward(self, y, logdet, z, is_training: bool = True):
 
-        x = y * tf.exp(- self._log_scale_t)
-        self._current_backward_logdet = - self._current_forward_logdet
+        x = y * tf.exp(-self._log_scale_t)
+        self._current_backward_logdet = -self._current_forward_logdet
         dlogdet = self._current_backward_logdet
         return x, logdet + dlogdet, z
+
+
+class ActnormLayer(FlowLayer):
+    def __init__(
+        self,
+        input_shape: Optional[Tuple[int, int, int, int]] = None,
+        scale: float = 1.0,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self._bias_layer = ActnormBiasLayer(input_shape)
+        self._scale_layer = ActnormScaleLayer(input_shape, scale=scale)
+        self._chain = ChainLayer([self._bias_layer, self._scale_layer])
+
+    def get_ddi_init_ops(self, num_init_iterations: int = 0):
+        bias_update_op = self._bias_layer.get_ddi_init_ops(num_init_iterations)
+        with tf.control_dependencies([bias_update_op]):
+            scale_update_op = self._scale_layer.get_ddi_init_ops(num_init_iterations)
+            update_ops = tf.group([bias_update_op, scale_update_op])
+        return update_ops
+
+    def forward(self, x, logdet, z, is_training: bool = True):
+        return self._chain((x, logdet, z), forward=True, is_training=is_training)
+
+    def backward(self, y, logdet, z, is_training: bool = True):
+        return self._chain((y, logdet, z), forward=False, is_training=is_training)
+
+
+# Invertible 1x1 conv
+@add_arg_scope
+def invertible_1x1_conv(name, z, logdet, reverse=False):
+    test = True
+    if test:  # Set to "False" to use the LU-decomposed version
+
+        with tf.variable_scope(name):
+
+            shape = K.int_shape(z)
+            w_shape = [shape[3], shape[3]]
+
+            # Sample a random orthogonal matrix:
+            w_init = np.linalg.qr(np.random.randn(
+                *w_shape))[0].astype('float32')
+
+            w = tf.get_variable("W", dtype=tf.float32, initializer=w_init)
+
+            dlogdet = tf.cast(tf.log(abs(tf.matrix_determinant(
+                tf.cast(w, 'float64')))), 'float32') * shape[1]*shape[2]
+
+            if not reverse:
+
+                _w = tf.reshape(w, [1, 1] + w_shape)
+                z = tf.nn.conv2d(z, _w, [1, 1, 1, 1],
+                                 'SAME', data_format='NHWC')
+                logdet += dlogdet
+
+                return z, logdet
+            else:
+
+                _w = tf.matrix_inverse(w)
+                _w = tf.reshape(_w, [1, 1]+w_shape)
+                z = tf.nn.conv2d(z, _w, [1, 1, 1, 1],
+                                 'SAME', data_format='NHWC')
+                logdet -= dlogdet
+
+                return z, logdet
+    else:
+
+        # LU-decomposed version
+        shape = K.int_shape(z)
+        with tf.variable_scope(name):
+
+            dtype = 'float64'
+
+            # Random orthogonal matrix:
+            import scipy
+            np_w = scipy.linalg.qr(np.random.randn(shape[3], shape[3]))[
+                0].astype('float32')
+
+            np_p, np_l, np_u = scipy.linalg.lu(np_w)
+            np_s = np.diag(np_u)
+            np_sign_s = np.sign(np_s)
+            np_log_s = np.log(abs(np_s))
+            np_u = np.triu(np_u, k=1)
+
+            p = tf.get_variable("P", initializer=np_p, trainable=False)
+            l = tf.get_variable("L", initializer=np_l)
+            sign_s = tf.get_variable(
+                "sign_S", initializer=np_sign_s, trainable=False)
+            log_s = tf.get_variable("log_S", initializer=np_log_s)
+            # S = tf.get_variable("S", initializer=np_s)
+            u = tf.get_variable("U", initializer=np_u)
+
+            p = tf.cast(p, dtype)
+            l = tf.cast(l, dtype)
+            sign_s = tf.cast(sign_s, dtype)
+            log_s = tf.cast(log_s, dtype)
+            u = tf.cast(u, dtype)
+
+            w_shape = [shape[3], shape[3]]
+
+            l_mask = np.tril(np.ones(w_shape, dtype=dtype), -1)
+            l = l * l_mask + tf.eye(*w_shape, dtype=dtype)
+            u = u * np.transpose(l_mask) + tf.diag(sign_s * tf.exp(log_s))
+            w = tf.matmul(p, tf.matmul(l, u))
+
+            if True:
+                u_inv = tf.matrix_inverse(u)
+                l_inv = tf.matrix_inverse(l)
+                p_inv = tf.matrix_inverse(p)
+                w_inv = tf.matmul(u_inv, tf.matmul(l_inv, p_inv))
+            else:
+                w_inv = tf.matrix_inverse(w)
+
+            w = tf.cast(w, tf.float32)
+            w_inv = tf.cast(w_inv, tf.float32)
+            log_s = tf.cast(log_s, tf.float32)
+
+            if not reverse:
+
+                w = tf.reshape(w, [1, 1] + w_shape)
+                z = tf.nn.conv2d(z, w, [1, 1, 1, 1],
+                                 'SAME', data_format='NHWC')
+                logdet += tf.reduce_sum(log_s) * (shape[1]*shape[2])
+
+                return z, logdet
+            else:
+
+                w_inv = tf.reshape(w_inv, [1, 1]+w_shape)
+                z = tf.nn.conv2d(
+                    z, w_inv, [1, 1, 1, 1], 'SAME', data_format='NHWC')
+                logdet -= tf.reduce_sum(log_s) * (shape[1]*shape[2])
+
+                return z, logdet
