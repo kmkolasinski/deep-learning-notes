@@ -12,24 +12,32 @@ import tensorflow.contrib.layers as tf_layers
 from tensorflow.python.ops import template as template_ops
 
 
-def simple_resnet_template_fn(name: str):
+def simple_resnet_template_fn(
+        name: str,
+        activation_fn=tf.nn.relu,
+):
+
     def _shift_and_log_scale_fn(x: tf.Tensor):
         shape = K.int_shape(x)
         num_channels = shape[3]
+
+        # if num_units is None:
+        num_units = num_channels
+
         # nn definition
         h = tf_layers.conv2d(
-            x, num_outputs=num_channels, kernel_size=3, activation_fn=tf.nn.softplus
+            x, num_outputs=num_units, kernel_size=3, activation_fn=activation_fn
         )
         h = tf_layers.conv2d(
             h,
-            num_outputs=num_channels // 2,
+            num_outputs=num_units,
             kernel_size=3,
-            activation_fn=tf.nn.softplus,
+            activation_fn=activation_fn,
         )
         h = tf_layers.conv2d(
             h, num_outputs=num_channels, kernel_size=3, activation_fn=None
         )
-        h = tf.nn.softplus(h + x)
+        h = activation_fn(h + x)
 
         # create shift and log_scale
         shift = tf_layers.conv2d(
