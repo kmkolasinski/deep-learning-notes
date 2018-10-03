@@ -4,6 +4,7 @@ import flow_layers as fl
 import tensorflow as tf
 import numpy as np
 from tensorflow.contrib import framework as tf_framework
+
 K = tf.keras.backend
 keras = tf.keras
 import tensorflow.contrib.layers as tf_layers
@@ -11,7 +12,6 @@ from tensorflow.python.ops import template as template_ops
 
 
 def _shift_and_log_scale_fn_template(name):
-
     def _shift_and_log_scale_fn(x: tf.Tensor):
         shape = K.int_shape(x)
         num_channels = shape[3]
@@ -59,12 +59,12 @@ class TestLayers(tf.test.TestCase):
                     self.assertAllClose(c_np, cprim_np, atol=atol)
 
     def try_to_train_identity_layer(
-            self,
-            layer: fl.FlowLayer,
-            flow: fl.FlowData,
-            feed_dict_fn: Optional[Callable[[], Dict[tf.Tensor, np.ndarray]]] = None,
-            sess: Optional[tf.Session] = None,
-            post_init_fn: Optional[Callable[[tf.Session], None]] = None
+        self,
+        layer: fl.FlowLayer,
+        flow: fl.FlowData,
+        feed_dict_fn: Optional[Callable[[], Dict[tf.Tensor, np.ndarray]]] = None,
+        sess: Optional[tf.Session] = None,
+        post_init_fn: Optional[Callable[[tf.Session], None]] = None,
     ):
         x, logdet, z = flow
         new_flow = layer(flow, forward=True, is_training=True)
@@ -508,9 +508,7 @@ class TestLayers(tf.test.TestCase):
         with tf.variable_scope("TestTrain"):
             layer = fl.ActnormLayer(scale=np.sqrt(np.pi))
             self.try_to_train_identity_layer(
-                layer, flow,
-                feed_dict_fn=feed_dict_fn,
-                post_init_fn=post_init_fn
+                layer, flow, feed_dict_fn=feed_dict_fn, post_init_fn=post_init_fn
             )
 
     def test_invertible_conv1x1_no_lu_decomp(self):

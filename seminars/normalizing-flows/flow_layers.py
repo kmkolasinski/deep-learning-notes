@@ -64,23 +64,26 @@ class FlowLayer:
 
     @add_arg_scope
     def __call__(
-            self, inputs: FlowData, forward: bool, is_training: bool = True
+        self, inputs: FlowData, forward: bool, is_training: bool = True
     ) -> FlowData:
         assert isinstance(inputs, tuple)
         scope_name = self._name
-        with tf.variable_scope(scope_name), \
-             tf.variable_scope(f"{type(self).__name__}"):
+        with tf.variable_scope(scope_name), tf.variable_scope(f"{type(self).__name__}"):
             if forward:
                 self._forward_inputs.append(inputs)
                 outputs = self.forward(*inputs, is_training=is_training)
                 outputs = identity_flow(outputs, forward=forward)
-                print_shapes(f"{type(self).__name__}/Forward/{scope_name}", True, outputs)
+                print_shapes(
+                    f"{type(self).__name__}/Forward/{scope_name}", True, outputs
+                )
                 self._forward_outputs.append(outputs)
             else:
                 self._backward_inputs.append(inputs)
                 outputs = self.backward(*inputs, is_training=is_training)
                 outputs = identity_flow(outputs, forward=forward)
-                print_shapes(f"{type(self).__name__}/Backward/{scope_name}", False, outputs)
+                print_shapes(
+                    f"{type(self).__name__}/Backward/{scope_name}", False, outputs
+                )
                 self._backward_outputs.append(outputs)
         return outputs
 
@@ -222,8 +225,10 @@ class ChainLayer(FlowLayer):
 
 class _ActnormBaseLayer(FlowLayer):
     def __init__(
-            self, name: str = "", input_shape: Optional[Tuple[int, int, int, int]] = None,
-            **kwargs
+        self,
+        name: str = "",
+        input_shape: Optional[Tuple[int, int, int, int]] = None,
+        **kwargs,
     ):
         # input_shape use it whenever you know the input shape
         if input_shape is not None:
@@ -263,8 +268,10 @@ class _ActnormBaseLayer(FlowLayer):
 
 class ActnormBiasLayer(_ActnormBaseLayer):
     def __init__(
-            self, name: str = "", input_shape: Optional[Tuple[int, int, int, int]] = None,
-            **kwargs
+        self,
+        name: str = "",
+        input_shape: Optional[Tuple[int, int, int, int]] = None,
+        **kwargs,
     ):
         super().__init__(name=name, input_shape=input_shape, **kwargs)
         self._bias_t: tf.Variable = None
@@ -275,8 +282,7 @@ class ActnormBiasLayer(_ActnormBaseLayer):
         n = num_init_iterations
         omega = tf.to_float(np.exp(-min(1, n) / max(1, n)))
         new_bias = self._bias_t * (1 - omega) - omega * x_mean
-        bias_assign_op = tf.assign_add(self._bias_t, new_bias,
-                                       name="bias_assign")
+        bias_assign_op = tf.assign_add(self._bias_t, new_bias, name="bias_assign")
 
         return bias_assign_op
 
@@ -285,8 +291,7 @@ class ActnormBiasLayer(_ActnormBaseLayer):
             return
 
         self._bias_t = tf.get_variable(
-            "bias", self.variable_shape, tf.float32,
-            initializer=tf.zeros_initializer()
+            "bias", self.variable_shape, tf.float32, initializer=tf.zeros_initializer()
         )
 
     def forward(self, x, logdet, z, is_training: bool = True):
@@ -304,11 +309,11 @@ class ActnormBiasLayer(_ActnormBaseLayer):
 
 class ActnormScaleLayer(_ActnormBaseLayer):
     def __init__(
-            self,
-            name: str = "",
-            input_shape: Optional[Tuple[int, int, int, int]] = None,
-            scale: float = 1.0,
-            **kwargs,
+        self,
+        name: str = "",
+        input_shape: Optional[Tuple[int, int, int, int]] = None,
+        scale: float = 1.0,
+        **kwargs,
     ):
         super().__init__(name=name, input_shape=input_shape, **kwargs)
 
@@ -368,11 +373,11 @@ class ActnormScaleLayer(_ActnormBaseLayer):
 
 class ActnormLayer(FlowLayer):
     def __init__(
-            self,
-            name: str = "",
-            input_shape: Optional[Tuple[int, int, int, int]] = None,
-            scale: float = 1.0,
-            **kwargs,
+        self,
+        name: str = "",
+        input_shape: Optional[Tuple[int, int, int, int]] = None,
+        scale: float = 1.0,
+        **kwargs,
     ):
         super().__init__(name=name, **kwargs)
         self._bias_layer = ActnormBiasLayer(input_shape=input_shape)
@@ -382,18 +387,15 @@ class ActnormLayer(FlowLayer):
     def get_ddi_init_ops(self, num_init_iterations: int = 0):
         bias_update_op = self._bias_layer.get_ddi_init_ops(num_init_iterations)
         with tf.control_dependencies([bias_update_op]):
-            scale_update_op = self._scale_layer.get_ddi_init_ops(
-                num_init_iterations)
+            scale_update_op = self._scale_layer.get_ddi_init_ops(num_init_iterations)
             update_ops = tf.group([bias_update_op, scale_update_op])
         return update_ops
 
     def forward(self, x, logdet, z, is_training: bool = True):
-        return self._chain((x, logdet, z), forward=True,
-                           is_training=is_training)
+        return self._chain((x, logdet, z), forward=True, is_training=is_training)
 
     def backward(self, y, logdet, z, is_training: bool = True):
-        return self._chain((y, logdet, z), forward=False,
-                           is_training=is_training)
+        return self._chain((y, logdet, z), forward=False, is_training=is_training)
 
 
 class InvertibleConv1x1Layer(FlowLayer):
@@ -413,20 +415,24 @@ class InvertibleConv1x1Layer(FlowLayer):
         if self._input_shape is None:
             return
         assert len(self._input_shape) == 4
-        dtype = 'float64'
+        dtype = "float64"
         shape = self._input_shape
         num_channels = shape[3]
         w_shape = [num_channels, num_channels]
         kernel_shape = [1, 1, num_channels, num_channels]
         # Sample a random orthogonal matrix
-        w_init = np.linalg.qr(np.random.randn(*w_shape))[0].astype('float32')
+        w_init = np.linalg.qr(np.random.randn(*w_shape))[0].astype("float32")
 
         if not self._use_lu_decomposition:
 
             w = tf.get_variable("kernel", dtype=tf.float32, initializer=w_init)
-            dlogdet = tf.cast(tf.log(tf.abs(
-                tf.matrix_determinant(tf.cast(w, dtype)))
-            ), 'float32') * shape[1] * shape[2]
+            dlogdet = (
+                tf.cast(
+                    tf.log(tf.abs(tf.matrix_determinant(tf.cast(w, dtype)))), "float32"
+                )
+                * shape[1]
+                * shape[2]
+            )
 
             self._weights = [w]
             self._dlogdet_t = dlogdet
@@ -442,8 +448,7 @@ class InvertibleConv1x1Layer(FlowLayer):
 
             p_mat = tf.get_variable("P_mat", initializer=np_p, trainable=False)
             l_mat = tf.get_variable("L_mat", initializer=np_l)
-            sign_s = tf.get_variable("sign_S", initializer=np_sign_s,
-                                     trainable=False)
+            sign_s = tf.get_variable("sign_S", initializer=np_sign_s, trainable=False)
             log_s = tf.get_variable("log_S", initializer=np_log_s)
             u_mat = tf.get_variable("U_mat", initializer=np_u)
 
@@ -458,8 +463,7 @@ class InvertibleConv1x1Layer(FlowLayer):
 
             l_mask = np.tril(np.ones(w_shape, dtype=dtype), -1)
             l_mat = l_mat * l_mask + tf.eye(*w_shape, dtype=dtype)
-            u_mat = u_mat * np.transpose(l_mask) + tf.diag(
-                sign_s * tf.exp(log_s))
+            u_mat = u_mat * np.transpose(l_mask) + tf.diag(sign_s * tf.exp(log_s))
             w = tf.matmul(p_mat, tf.matmul(l_mat, u_mat))
 
             # inverse w
@@ -480,24 +484,24 @@ class InvertibleConv1x1Layer(FlowLayer):
             self._input_shape = K.int_shape(x)
             self.build()
 
-        y = tf.nn.conv2d(x, self._kernel_t, [1, 1, 1, 1], 'SAME',
-                         data_format='NHWC')
+        y = tf.nn.conv2d(x, self._kernel_t, [1, 1, 1, 1], "SAME", data_format="NHWC")
         return y, logdet + self._dlogdet_t, z
 
     def backward(self, y, logdet, z, is_training: bool = True) -> FlowData:
 
-        x = tf.nn.conv2d(y, self._inv_kernel_t, [1, 1, 1, 1], 'SAME',
-                         data_format='NHWC')
+        x = tf.nn.conv2d(
+            y, self._inv_kernel_t, [1, 1, 1, 1], "SAME", data_format="NHWC"
+        )
         return x, logdet - self._dlogdet_t, z
 
 
 class AffineCouplingLayer(FlowLayer):
     def __init__(
-            self,
-            shift_and_log_scale_fn,
-            name: str = "",
-            log_scale_fn=lambda x: tf.exp(tf.clip_by_value(x, -15.0, 15.0)),
-            **kwargs
+        self,
+        shift_and_log_scale_fn,
+        name: str = "",
+        log_scale_fn=lambda x: tf.exp(tf.clip_by_value(x, -15.0, 15.0)),
+        **kwargs,
     ):
         super().__init__(name=name, **kwargs)
         self._shift_and_log_scale_fn = shift_and_log_scale_fn
@@ -508,8 +512,8 @@ class AffineCouplingLayer(FlowLayer):
         assert len(input_shape) == 4
         num_channels = input_shape[3]
 
-        x1 = x[:, :, :, :num_channels // 2]
-        x2 = x[:, :, :, num_channels // 2:]
+        x1 = x[:, :, :, : num_channels // 2]
+        x2 = x[:, :, :, num_channels // 2 :]
 
         shift, log_scale = self._shift_and_log_scale_fn(x1)
         if shift is not None:
@@ -530,8 +534,8 @@ class AffineCouplingLayer(FlowLayer):
         assert len(input_shape) == 4
         num_channels = input_shape[3]
 
-        y1 = y[:, :, :, :num_channels // 2]
-        y2 = y[:, :, :, num_channels // 2:]
+        y1 = y[:, :, :, : num_channels // 2]
+        y2 = y[:, :, :, num_channels // 2 :]
 
         shift, log_scale = self._shift_and_log_scale_fn(y1)
         if log_scale is not None:
