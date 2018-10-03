@@ -79,7 +79,6 @@ class TemplateFn:
 
 
 class ResentTemplate(TemplateFn):
-
     def __init__(
             self,
             activation_fn=tf.nn.relu,
@@ -91,7 +90,10 @@ class ResentTemplate(TemplateFn):
             "units_factor": units_factor,
             "num_blocks": num_blocks,
         }
-        super().__init__(params=params, template_fn=simple_resnet_template_fn)
+        super().__init__(
+            params=params,
+            template_fn=simple_resnet_template_fn
+        )
 
 
 def step_flow(name: str, shift_and_log_scale_fn):
