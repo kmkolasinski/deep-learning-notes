@@ -1,18 +1,30 @@
-from typing import Optional, Tuple, List
+"""
+A set of Bijectors layers used to build normalizing flow models. This
+implementation is very similar to those in the tf.distribution.Bijectors API.
+however those layers support the additional flow for the factored out variables
+used to model multiscale architectures.
+"""
+from typing import Optional, Tuple, List, Callable
 
 import numpy as np
+import scipy.linalg as salg
 import tensorflow as tf
+from tensorflow.contrib.framework.python.ops import add_arg_scope
 
 K = tf.keras.backend
 keras = tf.keras
-from tensorflow.contrib.framework.python.ops import add_arg_scope
-import scipy.linalg as salg
-
 # x, logdet, z
 FlowData = Tuple[tf.Tensor, tf.Tensor, Optional[tf.Tensor]]
 
 
-def print_shapes(name: str, forward: bool, flow: FlowData):
+def print_shapes(name: str, forward: bool, flow: FlowData) -> None:
+    """
+    Prints flow data
+    Args:
+        name: name of the flow class
+        forward: whether the flow is in forward mode or not
+        flow: flow data
+    """
     x_name = "x"
     if not forward:
         x_name = "y"
@@ -29,6 +41,8 @@ def print_shapes(name: str, forward: bool, flow: FlowData):
 
 
 def identity_flow(flow: FlowData, forward: bool) -> FlowData:
+    """Name flow data nodes. Returns flow passed through the
+    tf.identity function."""
     with tf.name_scope("outputs"):
         x, logdet, z = flow
         if forward:
@@ -42,30 +56,57 @@ def identity_flow(flow: FlowData, forward: bool) -> FlowData:
 
 
 class FlowLayer:
+    """Abstract flow layer"""
     def __init__(self, name: str = "", **kwargs):
+        """
+        Initialize flow layer
+        Args:
+            name: a custom name for the flow layer
+            **kwargs: not used
+        """
         super(FlowLayer, self).__init__(**kwargs)
-        self._forward_inputs = []
-        self._forward_outputs = []
+        self._forward_inputs = []  # a forward function input tensors
+        self._forward_outputs = []  # a forward output tensors
         self._backward_inputs = []
         self._backward_outputs = []
+        # This is used only by some layers where the logdet does not
+        # depend on the input x.
         self._current_forward_logdet: tf.Tensor = 0.0
         self._current_backward_logdet: tf.Tensor = 0.0
         self._name = name
         self.build()
 
-    def build(self):
+    def build(self) -> None:
+        """Initialize flow variables"""
         pass
 
-    def forward(self, x, logdet, z, is_training: bool = True) -> FlowData:
+    def forward(self, x: tf.Tensor, logdet: tf.Tensor, z: Optional[tf.Tensor], is_training: bool = True) -> FlowData:
         raise NotImplementedError()
 
-    def backward(self, y, logdet, z, is_training: bool = True) -> FlowData:
+    def backward(self, y: tf.Tensor, logdet: tf.Tensor, z: Optional[tf.Tensor], is_training: bool = True) -> FlowData:
         raise NotImplementedError()
 
     @add_arg_scope
     def __call__(
         self, inputs: FlowData, forward: bool, is_training: bool = True
     ) -> FlowData:
+        """Forward or backward flow. If forward = True then this function
+        computes:
+                flow' = flow.forward(flow)
+        otherwise
+                flow' = flow.backward(flow)
+        This function must satisfy:
+                flow == flow.backward(flow.forward(flow))
+        Args:
+            inputs: input flow data
+            forward: whether to use forward mode or not
+            is_training: whether the layer is executed in training mode or not.
+                This parameter can be used to control behaviour of Dropout
+                or BatchNorm layers.
+
+        Returns:
+            transformed flow data
+        """
         assert isinstance(inputs, tuple)
         scope_name = self._name
         with tf.variable_scope(scope_name), tf.variable_scope(f"{type(self).__name__}"):
@@ -89,14 +130,21 @@ class FlowLayer:
 
 
 def InputLayer(x: tf.Tensor) -> FlowData:
-    """Initialize input flow x is an image"""
+    """
+    Initialize input flow x is an image
+    Args:
+        x: input tensor of shape [batch_size, num_channels] or in case of
+            images [batch_size, height, width, num_channels]
+
+    Returns:
+        x: same as input
+        logdet: a zero tensor of shape [batch_size]
+        z: a None value. This value is later initialized by FactorOutLayer
+    """
     input_shape = K.int_shape(x)
     assert len(input_shape) == 2 or len(input_shape) == 4
-
     batch_size = input_shape[0]
-
     assert batch_size is not None
-
     logdet = tf.zeros([batch_size])
     z = None
     return x, logdet, z
@@ -132,10 +180,19 @@ class LogitifyImage(FlowLayer):
 
 
 class SqueezingLayer(FlowLayer):
-    """Change dimensionality of the layer """
+    """Squeeze image spatial dimensionality. For example is the
+    input image has:
+        shape(x) = [batch_size, size, size, num_channels],
+    this function will return new tensor x' with shape:
+        shape(x') = [batch_size, size//2, size//2, num_channels * 2]
+
+    Important notes:
+        * size must be divisible by 2
+        * if z is not None it will be squeezed in the same manner
+        * this is volume preserving operation, hence logdet is unchanged
+    """
 
     def forward(self, x, logdet, z, is_training: bool = True):
-
         xs = K.int_shape(x)
         assert len(xs) == 4
         assert xs[1] % 2 == 0 and xs[2] % 2 == 0
@@ -159,7 +216,13 @@ class SqueezingLayer(FlowLayer):
 class FactorOutLayer(FlowLayer):
     """
     The layer that factors out half of the variables
-    directly to the latent space.
+    directly to the latent space. This layer can be used to model the
+    multi-scale architecture.
+
+    Important notes:
+        * if z is not None it will be concatenated with factored out tensor
+        * this is volume preserving operation, hence logdet is unchanged
+
     """
 
     def __init__(self, name: str = "", **kwargs):
@@ -167,7 +230,6 @@ class FactorOutLayer(FlowLayer):
         self.split_size = None
 
     def forward(self, x, logdet, z, is_training: bool = True):
-
         xs = K.int_shape(x)
         assert len(xs) == 4
         split = xs[3] // 2
@@ -204,9 +266,16 @@ class FactorOutLayer(FlowLayer):
 
 
 class ChainLayer(FlowLayer):
-    """chain multiple flows"""
+    """Chain multiple layers into single flow"""
 
     def __init__(self, layers: List[FlowLayer], name: str = "", **kwargs):
+        """Initialize ChainLayer
+
+        Args:
+            layers: a list of flow layers
+            name: a custom name of the layer
+            **kwargs:
+        """
         super().__init__(name=name, **kwargs)
         self._layers = layers
 
@@ -224,23 +293,34 @@ class ChainLayer(FlowLayer):
 
 
 class _ActnormBaseLayer(FlowLayer):
+    """An implementation of the ActNormLayer, this base class serves several
+    utility functions used by their derivatives: Bias and Scale layer"""
     def __init__(
         self,
         name: str = "",
         input_shape: Optional[Tuple[int, int, int, int]] = None,
         **kwargs,
-    ):
+    ) -> None:
+        """
+        Args:
+            name: a custom name of the layer
+            input_shape: an optional expected input tensor shape
+                [batch_size, height, width, num_channels] in case of images
+                or [batch_size, num_channels] when using dense layers. If not provided
+                the layer will be initialized when calling forward function.
+            **kwargs:
+        """
         # input_shape use it whenever you know the input shape
         if input_shape is not None:
             # do some checks
             assert len(input_shape) == 2 or len(input_shape) == 4
         else:
             self._input_shape = input_shape
-
         super().__init__(name=name, **kwargs)
 
     @property
     def variable_shape(self) -> Tuple[int, ...]:
+        """A shape of the bias or scale variable"""
         shape = None
         if len(self._input_shape) == 2:
             shape = (1, self._input_shape[1])
@@ -250,6 +330,19 @@ class _ActnormBaseLayer(FlowLayer):
 
     @property
     def forward_output_moments(self) -> Tuple[tf.Tensor, tf.Tensor]:
+        """Estimates mean and variance variables of the actnorm output
+        tensors i.e this function computes:
+                y = actnorm.forward(x)
+                mean = mean(y)
+                var = mean(|y - mean(y)|**2)
+        Note, that those statistics are used to implement Data Dependent
+        Initialization.
+
+        Returns:
+            mean and variance of the output activations of the actnorm layer of
+                shape [1, 1, 1, num_channels] in case of images and [1, num_channels]
+                in case of dense layers.
+        """
         assert len(self._forward_outputs) == 1
         x, logdet, z = self._forward_outputs[0]
 
@@ -272,11 +365,36 @@ class ActnormBiasLayer(_ActnormBaseLayer):
         name: str = "",
         input_shape: Optional[Tuple[int, int, int, int]] = None,
         **kwargs,
-    ):
+    ) -> None:
+        """
+        A bias bijector, it computes:
+                y = x + bias
+        Since this function is a volume preserving operation it does not change
+        the Jacobian.
+        """
         super().__init__(name=name, input_shape=input_shape, **kwargs)
         self._bias_t: tf.Variable = None
 
-    def get_ddi_init_ops(self, num_init_iterations: int = 0):
+    def get_ddi_init_ops(self, num_init_iterations: int = 0) -> tf.Operation:
+        """Return tensorflow update operation which can be used to
+        initialize bias variable, such that the output activations have
+        unit variance and mean zero. This function can be called only after
+        forward flow graph construction i.e.
+
+                output_flow = actnorm(input_flow)
+                init_op = actnorm.get_ddi_init_ops()
+                sess.run(init_op)
+
+        Args:
+            num_init_iterations: the number of iteration used to estimate the
+                variables based on the output activation statistics. Zero value
+                corresponds to the initialization proposed in the Glow paper.
+                Setting larger values allows to used more batches to iteratively
+                initialize layer variables.
+
+        Returns:
+            init_op: a tensorflow Operation
+        """
         x_mean, _ = self.forward_output_moments
         # initialize bias
         n = num_init_iterations
@@ -294,7 +412,7 @@ class ActnormBiasLayer(_ActnormBaseLayer):
             "bias", self.variable_shape, tf.float32, initializer=tf.zeros_initializer()
         )
 
-    def forward(self, x, logdet, z, is_training: bool = True):
+    def forward(self, x, logdet, z, is_training: bool = True) -> FlowData:
         if self._input_shape is None:
             self._input_shape = K.int_shape(x)
             self.build()
@@ -302,7 +420,7 @@ class ActnormBiasLayer(_ActnormBaseLayer):
         y = x + self._bias_t
         return y, logdet, z
 
-    def backward(self, y, logdet, z, is_training: bool = True):
+    def backward(self, y, logdet, z, is_training: bool = True) -> FlowData:
         x = y - self._bias_t
         return x, logdet, z
 
@@ -315,12 +433,40 @@ class ActnormScaleLayer(_ActnormBaseLayer):
         scale: float = 1.0,
         **kwargs,
     ):
+        """
+        An affine scale bijector, it computes:
+                    y = scale * x
+
+        Args:
+            scale: a scale of the variance of the initial value of the
+                log_scale parameter when using data dependent initialization.
+                See get_ddi_init_ops for the implementation.
+        """
         super().__init__(name=name, input_shape=input_shape, **kwargs)
 
         self._scale = scale
         self._log_scale_t: tf.Variable = None
 
-    def get_ddi_init_ops(self, num_init_iterations: int = 0):
+    def get_ddi_init_ops(self, num_init_iterations: int = 0) -> tf.Operation:
+        """Return tensorflow update operation which can be used to
+        initialize bias variable, such that the output activations have
+        unit variance and mean zero. This function can be called only after
+        forward flow graph construction i.e.
+
+                output_flow = actnorm(input_flow)
+                init_op = actnorm.get_ddi_init_ops()
+                sess.run(init_op)
+
+        Args:
+            num_init_iterations: the number of iteration used to estimate the
+                variables based on the output activation statistics. Zero value
+                corresponds to the initialization proposed in the Glow paper.
+                Setting larger values allows to used more batches to iteratively
+                initialize layer variables.
+
+        Returns:
+            init_op: a tensorflow Operation
+        """
         _, x_var = self.forward_output_moments
 
         # derived for iterative initialization
@@ -345,7 +491,7 @@ class ActnormScaleLayer(_ActnormBaseLayer):
             initializer=tf.zeros_initializer(),
         )
 
-    def forward(self, x, logdet, z, is_training: bool = True):
+    def forward(self, x, logdet, z, is_training: bool = True) -> FlowData:
         if self._input_shape is None:
             self._input_shape = K.int_shape(x)
             self.build()
@@ -363,7 +509,7 @@ class ActnormScaleLayer(_ActnormBaseLayer):
 
         return y, logdet + dlogdet, z
 
-    def backward(self, y, logdet, z, is_training: bool = True):
+    def backward(self, y, logdet, z, is_training: bool = True) -> FlowData:
 
         x = y * tf.exp(-self._log_scale_t)
         self._current_backward_logdet = -self._current_forward_logdet
@@ -379,27 +525,47 @@ class ActnormLayer(FlowLayer):
         scale: float = 1.0,
         **kwargs,
     ):
+        """
+        An implementation of the actnorm layer:
+                y = w * x + bias
+
+        Args:
+            scale: a scale parameter of the variance of the initial value of the
+                log_scale parameter when using data dependent initialization.
+                See get_ddi_init_ops for the implementation.
+        """
         super().__init__(name=name, **kwargs)
         self._bias_layer = ActnormBiasLayer(input_shape=input_shape)
         self._scale_layer = ActnormScaleLayer(input_shape=input_shape, scale=scale)
         self._chain = ChainLayer([self._bias_layer, self._scale_layer])
 
-    def get_ddi_init_ops(self, num_init_iterations: int = 0):
+    def get_ddi_init_ops(self, num_init_iterations: int = 0) -> tf.Operation:
         bias_update_op = self._bias_layer.get_ddi_init_ops(num_init_iterations)
         with tf.control_dependencies([bias_update_op]):
             scale_update_op = self._scale_layer.get_ddi_init_ops(num_init_iterations)
             update_ops = tf.group([bias_update_op, scale_update_op])
         return update_ops
 
-    def forward(self, x, logdet, z, is_training: bool = True):
+    def forward(self, x, logdet, z, is_training: bool = True) -> FlowData:
         return self._chain((x, logdet, z), forward=True, is_training=is_training)
 
-    def backward(self, y, logdet, z, is_training: bool = True):
+    def backward(self, y, logdet, z, is_training: bool = True)-> FlowData:
         return self._chain((y, logdet, z), forward=False, is_training=is_training)
 
 
 class InvertibleConv1x1Layer(FlowLayer):
     def __init__(self, name: str = "", use_lu_decomposition: bool = True, **kwargs):
+        """
+        Reimplementation of the Invertible 1D convolution see Glow paper.
+        This code has been copied from the glow source code and changed to fit
+        my API.
+
+        Args:
+            name: custom name for the layer
+            use_lu_decomposition: compute inverse of the kernel matrix using LU
+                decomposition. If False use naive approach.
+            **kwargs:
+        """
         self._use_lu_decomposition = use_lu_decomposition
         self._input_shape = None
         # only trainable weights
@@ -498,11 +664,22 @@ class InvertibleConv1x1Layer(FlowLayer):
 class AffineCouplingLayer(FlowLayer):
     def __init__(
         self,
-        shift_and_log_scale_fn,
+        shift_and_log_scale_fn: Callable[[tf.Tensor], tf.Tensor],
         name: str = "",
-        log_scale_fn=lambda x: tf.exp(tf.clip_by_value(x, -15.0, 15.0)),
+        log_scale_fn: Callable[[tf.Tensor], tf.Tensor] = lambda x: tf.exp(tf.clip_by_value(x, -15.0, 15.0)),
         **kwargs,
     ):
+        """
+        Implementation of the affine coupling layer (see RealNVP or NICE) paper
+        for more details.
+        Args:
+            shift_and_log_scale_fn: a function which takes for the input tensor
+                of shape [batch_size, width, height, num_channels] and return
+                shift and log_scale tensors of the same shape.
+            name: a custom name of the flow
+            log_scale_fn: a log scale function
+            **kwargs:
+        """
         super().__init__(name=name, **kwargs)
         self._shift_and_log_scale_fn = shift_and_log_scale_fn
         self._log_scale_fn = log_scale_fn
@@ -511,11 +688,12 @@ class AffineCouplingLayer(FlowLayer):
         input_shape = K.int_shape(x)
         assert len(input_shape) == 4
         num_channels = input_shape[3]
-
+        # split tensor along channel axis
         x1 = x[:, :, :, : num_channels // 2]
         x2 = x[:, :, :, num_channels // 2 :]
 
         shift, log_scale = self._shift_and_log_scale_fn(x1)
+
         if shift is not None:
             x2 += shift
 
@@ -524,12 +702,13 @@ class AffineCouplingLayer(FlowLayer):
             x2 *= scale
             dlogdet = tf.reduce_sum(tf.log(scale), axis=[1, 2, 3])
         else:
+            # coupling layer is volume preserving when scale is 1.0
             dlogdet = 0.0
 
         y = tf.concat([x1, x2], axis=3)
         return y, logdet + dlogdet, z
 
-    def backward(self, y, logdet, z, is_training: bool = True):
+    def backward(self, y, logdet, z, is_training: bool = True) -> FlowData:
         input_shape = K.int_shape(y)
         assert len(input_shape) == 4
         num_channels = input_shape[3]
