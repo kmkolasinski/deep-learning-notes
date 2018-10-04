@@ -1,3 +1,4 @@
+"""Utility functions used in notebooks"""
 from collections import defaultdict
 from typing import Optional, Callable
 

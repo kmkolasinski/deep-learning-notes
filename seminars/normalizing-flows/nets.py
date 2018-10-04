@@ -1,16 +1,15 @@
-from abc import abstractmethod
-from typing import List, Callable, Dict, Any
+from typing import List, Callable, Dict, Any, Tuple
 
 import numpy as np
 import tensorflow as tf
+import tensorflow.contrib.layers as tf_layers
+from tensorflow.python.ops import template as template_ops
 from tqdm import tqdm
 
 import flow_layers as fl
 
 K = tf.keras.backend
 keras = tf.keras
-import tensorflow.contrib.layers as tf_layers
-from tensorflow.python.ops import template as template_ops
 
 
 def simple_resnet_template_fn(
@@ -19,7 +18,19 @@ def simple_resnet_template_fn(
         units_factor: int = 2,
         num_blocks: int = 1
 ):
+    """
+    Creates simple Resnet shallow network. Note that this function will return a
+    tensorflow template.
+    Args:
+        name: a scope name of the network
+        activation_fn: activation function used after each conv layer
+        units_factor: a base scale of the numbers of units in the resnet block.
+            The number of units is computed as units_factor * num_channels.
+        num_blocks: num resnet blocks
 
+    Returns:
+        a template function
+    """
     def _shift_and_log_scale_fn(x: tf.Tensor):
         shape = K.int_shape(x)
         num_channels = shape[3]
@@ -43,7 +54,7 @@ def simple_resnet_template_fn(
                 )
                 h = activation_fn(h + h_input)
 
-        # create shift and log_scale
+        # create shift and log_scale with zero initialization
         shift = tf_layers.conv2d(
             h,
             num_outputs=num_channels,
@@ -65,7 +76,6 @@ def simple_resnet_template_fn(
 
 
 class TemplateFn:
-
     def __init__(
             self,
             params: Dict[str, Any],
@@ -96,7 +106,21 @@ class ResentTemplate(TemplateFn):
         )
 
 
-def step_flow(name: str, shift_and_log_scale_fn):
+def step_flow(
+        name: str,
+        shift_and_log_scale_fn: Callable[[tf.Tensor], tf.Tensor]
+) -> Tuple[fl.ChainLayer, fl.ActnormLayer]:
+    """Create single step of the Glow model:
+
+        1. actnorm
+        2. invertible conv
+        3. affine coupling layer
+
+    Returns:
+        step_layer: a flow layer which perform 1-3 operations
+        actnorm: a reference of actnorm layer from step 1. This reference can be
+            used to initialize this layer using data dependent initialization
+    """
     actnorm = fl.ActnormLayer()
     layers = [
         actnorm,
@@ -113,6 +137,17 @@ def initialize_actnorms(
     num_steps: int = 100,
     num_init_iterations: int = 10,
 ) -> None:
+    """Initialize actnorm layers using data dependent initialization
+
+    Args:
+        sess: an instance of tf.Session
+        feed_dict_fn: a feed dict function which return feed_dict to the tensorflow
+            sess.run function.
+        actnorm_layers: a list of actnorms to initialize
+        num_steps: number of batches to used for iterative initialization.
+        num_init_iterations: a get_ddi_init_ops parameter. For more details
+            see the implementation.
+    """
     for actnorm_layer in tqdm(actnorm_layers):
         init_op = actnorm_layer.get_ddi_init_ops(num_init_iterations)
         for i in range(num_steps):
@@ -124,7 +159,20 @@ def create_simple_flow(
         num_scales: int = 3,
         template_fn: TemplateFn = ResentTemplate()
 ) -> (List[fl.FlowLayer], List[fl.ActnormLayer]):
+    """Create Glow model. This implementation may slightly differ from the
+    official one. For example the last layer here is the fl.FactorOutLayer
 
+    Args:
+        num_steps: number of steps per single scale, a K parameter from the paper
+        num_scales: number of scales, a L parameter from the paper. Each scale
+            reduces the tensor spatial dimension by 2.
+        template_fn: a template function used in AffineCoupling layer
+
+    Returns:
+        layers: a list of layers which define normalizing flow
+        actnorms: a list of actnorm layers which can be initialized using data
+            dependent initialization. See: initialize_actnorms() function.
+    """
     layers = [fl.LogitifyImage()]
     actnorm_layers = []
     for scale in range(num_scales):
