@@ -1,10 +1,6 @@
-import tensorflow as tf
-import tensorflow.keras.backend as K
-
+import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.framework.python.ops import add_arg_scope, arg_scope
-from tensorflow.contrib.layers import variance_scaling_initializer
-import numpy as np
 
 
 def default_initial_value(shape, std=0.05):
@@ -249,6 +245,10 @@ def conv2d_zeros(name, x, width, filter_size=[3, 3], stride=[1, 1], pad="SAME",
                                     [1, width],
                                     initializer=tf.zeros_initializer()) * logscale_factor)
     return x
+
+
+K = tf.keras.backend
+keras = tf.keras
 
 
 # inspired by loss of VAEs
