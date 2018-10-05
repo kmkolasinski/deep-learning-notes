@@ -59,9 +59,11 @@ def create_tfrecord_dataset_iterator(
         image = tf.reshape(image, [148, 148, 3])
         return image
 
-    dataset = dataset.apply(
-        tf.contrib.data.shuffle_and_repeat(buffer_size=buffer_size, count=-1)
-    )
+    if buffer_size > 0:
+        dataset = dataset.apply(
+            tf.contrib.data.shuffle_and_repeat(buffer_size=buffer_size, count=-1)
+        )
+
     dataset = dataset.apply(
         tf.contrib.data.map_and_batch(
             map_func=preprocess_images,
