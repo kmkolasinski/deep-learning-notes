@@ -164,13 +164,14 @@ def main(argv):
 
         train_summary_hook = tf.train.SummarySaverHook(
             save_secs=args.save_secs,
-            output_dir=args.model_dir + "/train",
+            output_dir=args.model_dir,
             summary_op=grid_summary
         )
 
         global_step = tf.train.get_global_step()
         learning_rate = tf.train.inverse_time_decay(
-            args.lr, global_step, args.decay_steps, args.decay_rate
+            args.lr, global_step, args.decay_steps, args.decay_rate,
+
         )
 
         tf.summary.scalar('learning_rate', learning_rate)
