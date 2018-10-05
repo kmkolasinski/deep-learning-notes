@@ -135,7 +135,7 @@ def openai_template_fn(
             h = x
             h = activation_fn(ops.conv2d("l_1", h, width))
             h = activation_fn(ops.conv2d("l_2", h, width, filter_size=[1, 1]))
-            h = ops.conv2d_zeros("l_last", h)
+            h = ops.conv2d_zeros("l_last", h, width)
 
             if use_skip_connection:
                 h = h + x
