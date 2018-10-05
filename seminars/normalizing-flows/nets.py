@@ -7,6 +7,8 @@ from tensorflow.python.ops import template as template_ops
 from tqdm import tqdm
 
 import flow_layers as fl
+import tf_ops as ops
+
 
 K = tf.keras.backend
 keras = tf.keras
@@ -103,6 +105,74 @@ class ResentTemplate(TemplateFn):
         super().__init__(
             params=params,
             template_fn=simple_resnet_template_fn
+        )
+
+
+def openai_template_fn(
+        name: str,
+        activation_fn=tf.nn.relu,
+        width: int = 64,
+        use_skip_connection: bool = False
+):
+    """
+    Creates simple shallow network. Note that this function will return a
+    tensorflow template.
+    Args:
+        name: a scope name of the network
+        activation_fn: activation function used after each conv layer
+        width: number of filters in the shallow network
+        use_skip_connection: if True this network works will behave like
+            Resnet
+
+    Returns:
+        a template function
+    """
+    def _shift_and_log_scale_fn(x: tf.Tensor):
+        shape = K.int_shape(x)
+        num_channels = shape[3]
+
+        with tf.variable_scope("BlockNN"):
+            h = x
+            h = activation_fn(ops.conv2d("l_1", h, width))
+            h = activation_fn(ops.conv2d("l_2", h, width, filter_size=[1, 1]))
+            h = ops.conv2d_zeros("l_last", h)
+
+            if use_skip_connection:
+                h = h + x
+
+            # create shift and log_scale with zero initialization
+            shift_log_scale = tf_layers.conv2d(
+                h,
+                num_outputs=2 * num_channels,
+                weights_initializer=tf.random_normal_initializer(stddev=0.001),
+                kernel_size=3,
+                activation_fn=None,
+            )
+
+            shift = shift_log_scale[:, :, :, :num_channels]
+            log_scale = shift_log_scale[:, :, :, num_channels:]
+
+            log_scale = tf.clip_by_value(log_scale, -15.0, 15.0)
+            return shift, log_scale
+
+    return template_ops.make_template(name, _shift_and_log_scale_fn)
+
+
+class OpenAITemplate(TemplateFn):
+    def __init__(
+            self,
+            activation_fn=tf.nn.relu,
+            width: int = 32,
+            use_skip_connection: bool = False,
+    ) -> None:
+        params = {
+            "activation_fn": activation_fn,
+            "width": width,
+            "use_skip_connection": use_skip_connection,
+        }
+        super().__init__(
+            params=params,
+            template_fn=openai_template_fn
         )
 
 
