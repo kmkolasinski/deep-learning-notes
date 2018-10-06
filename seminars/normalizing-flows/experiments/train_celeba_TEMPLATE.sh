@@ -17,7 +17,10 @@ python ./train_celeba.py \
     --decay_steps 10000 \
     --decay_rate 0.5 \
     --units_factor 4 \
+    --units_width 0 \
     --num_blocks 2 \
+    --use_batchnorm False \
+    --skip_connection True \
     --num_steps 4 \
     --num_scales 3 \
     --mode train

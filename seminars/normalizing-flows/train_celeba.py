@@ -1,11 +1,16 @@
 from tensorflow.python.training.session_run_hook import SessionRunHook
 from tqdm import tqdm
 
+from tensorflow.contrib import framework as tf_framework
+from tensorflow.contrib import layers as tf_layers
+
 import utils
 import nets
 import flow_layers as fl
 import argparse
 import tensorflow as tf
+import numpy as np
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--batch_size', default=16, type=int, help='batch size')
@@ -25,12 +30,35 @@ parser.add_argument('--decay_steps', type=int, default=10000, help='decay_steps'
 parser.add_argument('--decay_rate', type=float, default=0.5, help='decay_rate')
 # resnet
 parser.add_argument('--units_factor', type=int, default=4, help='resnet units_factor')
+parser.add_argument('--units_width', type=int, default=0, help='resnet units width if units_width=0 units_factor is used')
+parser.add_argument('--skip_connection', type=bool, default=True, help='use skip connection in resnet or not')
 parser.add_argument('--num_blocks', type=int, default=2, help='resnet num_blocks')
+parser.add_argument('--use_batchnorm', type=bool, default=False, help='use_batchnorm')
 # flow
 parser.add_argument('--num_steps', type=int, default=4)
 parser.add_argument('--num_scales', type=int, default=3)
 
 ACTNORM_INIT_OPS = "ACTNORM_INIT_OPS"
+
+
+def _get_conv_hyperparams(is_training: bool, use_batchnorm: bool):
+
+    batch_norm_params = dict(
+        decay=0.99,
+        scale=True,
+        updates_collections=None,
+        is_training=is_training)
+
+    if not use_batchnorm:
+        batch_norm_params = None
+
+    with tf_framework.arg_scope(
+        [tf_layers.conv2d, tf_layers.separable_conv2d],
+            weights_initializer=tf_layers.variance_scaling_initializer(),
+            activation_fn=tf.nn.relu,
+            normalizer_fn=tf_layers.batch_norm,
+            normalizer_params=batch_norm_params) as arg_sc:
+                return arg_sc
 
 
 class InitActnorms(SessionRunHook):
@@ -72,7 +100,10 @@ def main(argv):
     def model_fn(features, labels, mode, params):
 
         nn_template_fn = nets.ResentTemplate(
-            units_factor=args.units_factor, num_blocks=args.num_blocks
+            units_factor=args.units_factor,
+            num_blocks=args.num_blocks,
+            units_width=args.units_width,
+            skip_connection=args.skip_connection
         )
 
         layers, actnorm_layers = nets.create_simple_flow(
@@ -84,12 +115,23 @@ def main(argv):
         images = features["images"]
         flow = fl.InputLayer(images)
         model_flow = fl.ChainLayer(layers)
-        output_flow = model_flow(flow, forward=True)
-        y, logdet, z = output_flow
+        with tf_framework.arg_scope(_get_conv_hyperparams(
+                is_training=True, use_batchnorm=args.use_batchnorm
+        )):
+            output_flow = model_flow(flow, forward=True)
+            y, logdet, z = output_flow
 
         for layer in actnorm_layers:
             init_op = layer.get_ddi_init_ops(30)
             tf.add_to_collection(ACTNORM_INIT_OPS, init_op)
+
+        total_params = 0
+        trainable_variables = tf.trainable_variables()
+        for k, v in enumerate(trainable_variables):
+            num_params = np.prod(v.shape.as_list())
+            total_params += num_params
+
+        print(f"TOTAL PARAMS: {total_params/1e6} [M]")
 
         if mode == tf.estimator.ModeKeys.PREDICT:
             raise NotImplementedError()
@@ -122,17 +164,21 @@ def main(argv):
         tf.summary.scalar('l2_loss', l2_loss)
         tf.summary.scalar('mle_per_pixel', mle_per_pixel)
 
-        # Sampling during training and evaluation
-        sample_y_flatten = prior_y.sample()
-        sample_y = sample_beta * tf.reshape(sample_y_flatten,
-                                            y.shape.as_list())
-        sample_z = sample_beta * tf.reshape(prior_z.sample(),
-                                            z.shape.as_list())
-        sampled_logdet = prior_y.log_prob(sample_y_flatten)
+        with tf_framework.arg_scope(_get_conv_hyperparams(
+                is_training=False,
+                use_batchnorm=args.use_batchnorm
+        )):
+            # Sampling during training and evaluation
+            sample_y_flatten = prior_y.sample()
+            sample_y = sample_beta * tf.reshape(sample_y_flatten,
+                                                y.shape.as_list())
+            sample_z = sample_beta * tf.reshape(prior_z.sample(),
+                                                z.shape.as_list())
+            sampled_logdet = prior_y.log_prob(sample_y_flatten)
 
-        inverse_flow = sample_y, sampled_logdet, sample_z
-        sampled_flow = model_flow(inverse_flow, forward=False)
-        x_flow_sampled, _, _ = sampled_flow
+            inverse_flow = sample_y, sampled_logdet, sample_z
+            sampled_flow = model_flow(inverse_flow, forward=False)
+            x_flow_sampled, _, _ = sampled_flow
 
         grid_image = tf.contrib.gan.eval.image_grid(
             x_flow_sampled,
@@ -171,7 +217,7 @@ def main(argv):
         global_step = tf.train.get_global_step()
         learning_rate = tf.train.inverse_time_decay(
             args.lr, global_step, args.decay_steps, args.decay_rate,
-
+            staircase=True
         )
 
         tf.summary.scalar('learning_rate', learning_rate)
@@ -180,7 +226,8 @@ def main(argv):
         train_op = optimizer.minimize(loss,
                                       global_step=tf.train.get_global_step())
 
-        return tf.estimator.EstimatorSpec(mode, loss=loss, train_op=train_op, training_hooks=[train_summary_hook])
+        return tf.estimator.EstimatorSpec(mode, loss=loss, train_op=train_op,
+                                          training_hooks=[train_summary_hook])
 
     classifier = tf.estimator.Estimator(
         model_fn=model_fn,

@@ -18,7 +18,9 @@ def simple_resnet_template_fn(
         name: str,
         activation_fn=tf.nn.relu,
         units_factor: int = 2,
-        num_blocks: int = 1
+        num_blocks: int = 1,
+        units_width: int = 0,
+        skip_connection: bool = True
 ):
     """
     Creates simple Resnet shallow network. Note that this function will return a
@@ -29,6 +31,9 @@ def simple_resnet_template_fn(
         units_factor: a base scale of the numbers of units in the resnet block.
             The number of units is computed as units_factor * num_channels.
         num_blocks: num resnet blocks
+        units_width: number of units in the resnet. if 0 then units_factor
+            is used to estimate num_units in the conv2d
+        skip_connection: whether to use skip connections or not
 
     Returns:
         a template function
@@ -37,40 +42,51 @@ def simple_resnet_template_fn(
         shape = K.int_shape(x)
         num_channels = shape[3]
         num_units = num_channels * units_factor
+        if units_width != 0:
+            num_units = units_width
+
         h = x
         for u in range(num_blocks):
             with tf.variable_scope(f"ResnetBlock{u}"):
                 h_input = h
                 # nn definition
                 h = tf_layers.conv2d(
-                    h_input, num_outputs=num_units, kernel_size=3, activation_fn=activation_fn
-                )
-                h = tf_layers.conv2d(
-                    h,
+                    inputs=h_input,
                     num_outputs=num_units,
                     kernel_size=3,
-                    activation_fn=activation_fn,
+                    activation_fn=activation_fn
                 )
                 h = tf_layers.conv2d(
-                    h, num_outputs=num_channels, kernel_size=3, activation_fn=None
+                    inputs=h,
+                    num_outputs=num_units,
+                    kernel_size=1,
+                    activation_fn=None,
                 )
-                h = activation_fn(h + h_input)
+                if skip_connection:
+
+                    if num_units != K.int_shape(h_input)[3]:
+                        h_input = tf_layers.conv2d(
+                            inputs=h_input,
+                            num_outputs=num_units,
+                            kernel_size=1,
+                            activation_fn=activation_fn,
+                        )
+
+                    h = h + h_input
+
+                h = activation_fn(h)
 
         # create shift and log_scale with zero initialization
-        shift = tf_layers.conv2d(
-            h,
-            num_outputs=num_channels,
-            weights_initializer=tf.random_normal_initializer(stddev=0.001),
+        shift_log_scale = tf_layers.conv2d(
+            inputs=h,
+            num_outputs=2 * num_channels,
+            weights_initializer=tf.variance_scaling_initializer(scale=0.001),
             kernel_size=3,
             activation_fn=None,
+            normalizer_fn=None,
         )
-        log_scale = tf_layers.conv2d(
-            h,
-            num_outputs=num_channels,
-            weights_initializer=tf.random_normal_initializer(stddev=0.001),
-            kernel_size=3,
-            activation_fn=None,
-        )
+        shift = shift_log_scale[:, :, :, :num_channels]
+        log_scale = shift_log_scale[:, :, :, num_channels:]
         log_scale = tf.clip_by_value(log_scale, -15.0, 15.0)
         return shift, log_scale
 
@@ -96,11 +112,15 @@ class ResentTemplate(TemplateFn):
             activation_fn=tf.nn.relu,
             units_factor: int = 2,
             num_blocks: int = 1,
+            units_width: int = 0,
+            skip_connection: bool = True
     ) -> None:
         params = {
             "activation_fn": activation_fn,
             "units_factor": units_factor,
             "num_blocks": num_blocks,
+            "units_width": units_width,
+            "skip_connection": skip_connection,
         }
         super().__init__(
             params=params,
@@ -135,7 +155,6 @@ def openai_template_fn(
             h = x
             h = activation_fn(ops.conv2d("l_1", h, width))
             h = activation_fn(ops.conv2d("l_2", h, width, filter_size=[1, 1]))
-            h = ops.conv2d_zeros("l_last", h, width)
 
             if use_skip_connection:
                 h = h + x
