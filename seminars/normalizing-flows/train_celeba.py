@@ -205,14 +205,16 @@ def main(argv):
         if args.clip > 0.0:
             gvs = optimizer.compute_gradients(total_loss)
             capped_gvs = [
-                (tf.clip_by_value(grad, -1., 1.), var) for grad, var in gvs
+                (tf.clip_by_value(grad, -args.clip, args.clip), var) for grad, var in gvs
             ]
             train_op = optimizer.apply_gradients(capped_gvs, global_step=global_step)
         else:
-            train_op = optimizer.minimize(total_loss)
+            train_op = optimizer.minimize(total_loss, global_step=global_step)
 
-        return tf.estimator.EstimatorSpec(mode, loss=total_loss, train_op=train_op,
-                                          training_hooks=[train_summary_hook])
+        return tf.estimator.EstimatorSpec(
+            mode, loss=total_loss,
+            train_op=train_op, training_hooks=[train_summary_hook]
+        )
 
     classifier = tf.estimator.Estimator(
         model_fn=model_fn,
