@@ -171,3 +171,17 @@ def plot_4x4_grid(images: np.ndarray, shape: tuple = (28, 28), cmap="gray"):
             plt.xticks([])
             plt.yticks([])
     plt.subplots_adjust(hspace=0.05, wspace=0.05)
+
+
+def plot_grid(images: tf.Tensor) -> tf.Tensor:
+
+    batch_size, image_size = images.shape.as_list()[:2]
+
+    grid_image = tf.contrib.gan.eval.image_grid(
+        images,
+        grid_shape=[4, batch_size // 4],
+        image_shape=(image_size, image_size),
+        num_channels=3
+    )
+
+    return grid_image[0]
