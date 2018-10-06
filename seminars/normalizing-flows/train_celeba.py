@@ -118,11 +118,8 @@ def main(argv):
         images = features["images"]
         flow = fl.InputLayer(images)
         model_flow = fl.ChainLayer(layers)
-        with tf_framework.arg_scope(_get_conv_hyperparams(
-                is_training=True, use_batchnorm=args.use_batchnorm
-        )):
-            output_flow = model_flow(flow, forward=True)
-            y, logdet, z = output_flow
+        output_flow = model_flow(flow, forward=True)
+        y, logdet, z = output_flow
 
         for layer in actnorm_layers:
             init_op = layer.get_ddi_init_ops(30)
@@ -167,21 +164,17 @@ def main(argv):
         tf.summary.scalar('l2_loss', l2_loss)
         tf.summary.scalar('mle_per_pixel', mle_per_pixel)
 
-        with tf_framework.arg_scope(_get_conv_hyperparams(
-                is_training=False,
-                use_batchnorm=args.use_batchnorm
-        )):
-            # Sampling during training and evaluation
-            sample_y_flatten = prior_y.sample()
-            sample_y = sample_beta * tf.reshape(sample_y_flatten,
-                                                y.shape.as_list())
-            sample_z = sample_beta * tf.reshape(prior_z.sample(),
-                                                z.shape.as_list())
-            sampled_logdet = prior_y.log_prob(sample_y_flatten)
+        # Sampling during training and evaluation
+        sample_y_flatten = prior_y.sample()
+        sample_y = sample_beta * tf.reshape(sample_y_flatten,
+                                            y.shape.as_list())
+        sample_z = sample_beta * tf.reshape(prior_z.sample(),
+                                            z.shape.as_list())
+        sampled_logdet = prior_y.log_prob(sample_y_flatten)
 
-            inverse_flow = sample_y, sampled_logdet, sample_z
-            sampled_flow = model_flow(inverse_flow, forward=False)
-            x_flow_sampled, _, _ = sampled_flow
+        inverse_flow = sample_y, sampled_logdet, sample_z
+        sampled_flow = model_flow(inverse_flow, forward=False)
+        x_flow_sampled, _, _ = sampled_flow
 
         grid_image = tf.contrib.gan.eval.image_grid(
             x_flow_sampled,
