@@ -1,3 +1,5 @@
+from pprint import pprint
+
 from tensorflow.python.training.session_run_hook import SessionRunHook
 from tqdm import tqdm
 
@@ -78,6 +80,7 @@ class InitActnorms(SessionRunHook):
 
 def main(argv):
     args = parser.parse_args(argv[1:])
+    pprint(args)
     batch_size = args.batch_size
     l2_reg = args.l2_reg
     image_size = args.image_size
