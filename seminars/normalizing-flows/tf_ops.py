@@ -2,6 +2,8 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.framework.python.ops import add_arg_scope, arg_scope
 
+SELU_CONV2D_REG_LOSS = "selu_conv2d_reg_loss"
+
 
 def default_initial_value(shape, std=0.05):
     return tf.random_normal(shape, 0., std)
@@ -262,8 +264,14 @@ def fc_selu_reg(x: tf.Tensor, mu: float) -> tf.Tensor:
     return mu * (mean_loss + tau_loss)
 
 
-def conv2D_selu_regularizer(x: tf.Tensor, mu: float) -> tf.Tensor:
-    shape = K.int_shape(x)
-    num_filters = shape[-1]
-    x = K.reshape(x, shape=[-1, num_filters])
-    return fc_selu_reg(x, mu)
+def conv2d_selu_regularizer(scale: float):
+    def _regularizer_fn(weights: tf.Tensor) -> tf.Tensor:
+        shape = K.int_shape(weights)
+        num_filters = shape[-1]
+        weights = K.reshape(weights, shape=[-1, num_filters])
+        with tf.name_scope("SELUConv2DRegLoss"):
+            loss = fc_selu_reg(weights, scale)
+            tf.add_to_collection(SELU_CONV2D_REG_LOSS, loss)
+        return loss
+
+    return _regularizer_fn

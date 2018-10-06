@@ -7,6 +7,7 @@ from tensorflow.python.ops import template as template_ops
 from tqdm import tqdm
 
 import flow_layers as fl
+import tf_ops
 import tf_ops as ops
 
 
@@ -20,6 +21,7 @@ def simple_resnet_template_fn(
         units_factor: int = 2,
         num_blocks: int = 1,
         units_width: int = 0,
+        selu_reg_scale: float = 0.0,
         skip_connection: bool = True
 ):
     """
@@ -33,11 +35,18 @@ def simple_resnet_template_fn(
         num_blocks: num resnet blocks
         units_width: number of units in the resnet. if 0 then units_factor
             is used to estimate num_units in the conv2d
+        selu_reg_scale: conv weights selu like regularization
         skip_connection: whether to use skip connections or not
 
     Returns:
         a template function
     """
+
+    if selu_reg_scale == 0:
+        reg_fn = lambda: None
+    else:
+        reg_fn = lambda: tf_ops.conv2d_selu_regularizer(selu_reg_scale)
+
     def _shift_and_log_scale_fn(x: tf.Tensor):
         shape = K.int_shape(x)
         num_channels = shape[3]
@@ -54,7 +63,8 @@ def simple_resnet_template_fn(
                     inputs=h_input,
                     num_outputs=num_units,
                     kernel_size=3,
-                    activation_fn=activation_fn
+                    activation_fn=activation_fn,
+                    weights_regularizer=reg_fn()
                 )
                 h = tf_layers.conv2d(
                     inputs=h,
@@ -70,13 +80,14 @@ def simple_resnet_template_fn(
                             num_outputs=num_units,
                             kernel_size=1,
                             activation_fn=activation_fn,
+                            weights_regularizer=reg_fn()
                         )
 
                     h = h + h_input
 
                 h = activation_fn(h)
 
-        # create shift and log_scale with zero initialization
+        # create shift and log_scale with (almost) zero initialization
         shift_log_scale = tf_layers.conv2d(
             inputs=h,
             num_outputs=2 * num_channels,
@@ -113,7 +124,8 @@ class ResentTemplate(TemplateFn):
             units_factor: int = 2,
             num_blocks: int = 1,
             units_width: int = 0,
-            skip_connection: bool = True
+            skip_connection: bool = True,
+            selu_reg_scale: float = 0.001,
     ) -> None:
         params = {
             "activation_fn": activation_fn,
@@ -121,6 +133,7 @@ class ResentTemplate(TemplateFn):
             "num_blocks": num_blocks,
             "units_width": units_width,
             "skip_connection": skip_connection,
+            "selu_reg_scale": selu_reg_scale,
         }
         super().__init__(
             params=params,

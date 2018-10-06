@@ -1,66 +1,55 @@
+import argparse
 from pprint import pprint
 
+import numpy as np
+import tensorflow as tf
 from tensorflow.python.training.session_run_hook import SessionRunHook
 from tqdm import tqdm
 
-from tensorflow.contrib import framework as tf_framework
-from tensorflow.contrib import layers as tf_layers
-
-import utils
-import nets
 import flow_layers as fl
-import argparse
-import tensorflow as tf
-import numpy as np
-
+import nets
+import tf_ops
+import utils
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--batch_size', default=16, type=int, help='batch size')
 parser.add_argument('--image_size', default=24, type=int, help='image_size')
-parser.add_argument('--train_steps', default=100000, type=int, help='number of training steps')
-parser.add_argument('--eval_steps', default=100, type=int, help='number of eval steps')
-parser.add_argument('--dataset_path', type=str, default="./datasets/celeba/celeba_valid.tfrecords", help='path to tfrecords')
-parser.add_argument('--model_dir', type=str, default="./model", help='save path')
+parser.add_argument('--train_steps', default=100000, type=int,
+                    help='number of training steps')
+parser.add_argument('--eval_steps', default=100, type=int,
+                    help='number of eval steps')
+parser.add_argument('--dataset_path', type=str,
+                    default="./datasets/celeba/celeba_valid.tfrecords",
+                    help='path to tfrecords')
+parser.add_argument('--model_dir', type=str, default="./model",
+                    help='save path')
 parser.add_argument('--mode', type=str, help='[train|eval]')
 parser.add_argument('--l2_reg', type=float, default=0.0001, help='l2 reg')
+
 # sampling - evaluation
-parser.add_argument('--sample_beta', type=float, default=0.9, help='sample_beta')
+parser.add_argument('--sample_beta', type=float, default=0.9,
+                    help='sample_beta')
 parser.add_argument('--save_secs', type=int, default=100, help='save_secs')
 # scheduler
 parser.add_argument('--lr', type=float, default=0.001, help='initial lr')
-parser.add_argument('--decay_steps', type=int, default=10000, help='decay_steps')
+parser.add_argument('--decay_steps', type=int, default=10000,
+                    help='decay_steps')
 parser.add_argument('--decay_rate', type=float, default=0.5, help='decay_rate')
 # resnet
-parser.add_argument('--units_factor', type=int, default=4, help='resnet units_factor')
-parser.add_argument('--units_width', type=int, default=0, help='resnet units width if units_width=0 units_factor is used')
-parser.add_argument('--skip_connection', type=bool, default=True, help='use skip connection in resnet or not')
-parser.add_argument('--num_blocks', type=int, default=2, help='resnet num_blocks')
-parser.add_argument('--use_batchnorm', type=bool, default=False, help='use_batchnorm')
+parser.add_argument('--units_factor', type=int, default=4,
+                    help='resnet units_factor')
+parser.add_argument('--units_width', type=int, default=0,
+                    help='resnet units width if units_width=0 units_factor is used')
+parser.add_argument('--skip_connection', type=bool, default=True,
+                    help='use skip connection in resnet or not')
+parser.add_argument('--num_blocks', type=int, default=2,
+                    help='resnet num_blocks')
+parser.add_argument('--selu_reg', type=float, default=0.0001, help='selu_reg')
 # flow
 parser.add_argument('--num_steps', type=int, default=4)
 parser.add_argument('--num_scales', type=int, default=3)
 
 ACTNORM_INIT_OPS = "ACTNORM_INIT_OPS"
-
-
-def _get_conv_hyperparams(is_training: bool, use_batchnorm: bool):
-
-    batch_norm_params = dict(
-        decay=0.99,
-        scale=True,
-        updates_collections=None,
-        is_training=is_training)
-
-    if not use_batchnorm:
-        batch_norm_params = None
-
-    with tf_framework.arg_scope(
-        [tf_layers.conv2d, tf_layers.separable_conv2d],
-            weights_initializer=tf_layers.variance_scaling_initializer(),
-            activation_fn=tf.nn.relu,
-            normalizer_fn=tf_layers.batch_norm,
-            normalizer_params=batch_norm_params) as arg_sc:
-                return arg_sc
 
 
 class InitActnorms(SessionRunHook):
@@ -106,7 +95,8 @@ def main(argv):
             units_factor=args.units_factor,
             num_blocks=args.num_blocks,
             units_width=args.units_width,
-            skip_connection=args.skip_connection
+            skip_connection=args.skip_connection,
+            selu_reg_scale=args.selu_reg
         )
 
         layers, actnorm_layers = nets.create_simple_flow(
@@ -149,13 +139,17 @@ def main(argv):
         log_prob_z = prior_z.log_prob(z_flatten)
 
         loss = log_prob_y + log_prob_z + logdet
-        loss = - tf.reduce_mean(loss)
+        # compute loss per pixel, the final loss should be same
+        # for different input sizes
+        loss = - tf.reduce_mean(loss) / image_size / image_size
 
         trainable_variables = tf.trainable_variables()
         l2_loss = l2_reg * tf.add_n(
             [tf.nn.l2_loss(v) for v in trainable_variables])
 
-        total_loss = l2_loss + loss
+        selu_losses = tf.get_collection(tf_ops.SELU_CONV2D_REG_LOSS)
+        selu_reg_loss = tf.add_n(selu_losses)
+        total_loss = l2_loss + loss + selu_reg_loss
 
         mle_per_pixel = loss / image_size / image_size / 3
 
@@ -163,6 +157,7 @@ def main(argv):
         tf.summary.scalar('loss', loss)
         tf.summary.scalar('l2_loss', l2_loss)
         tf.summary.scalar('mle_per_pixel', mle_per_pixel)
+        tf.summary.scalar('selu_reg_loss', selu_reg_loss)
 
         # Sampling during training and evaluation
         sample_y_flatten = prior_y.sample()
@@ -188,7 +183,6 @@ def main(argv):
         )
 
         if mode == tf.estimator.ModeKeys.EVAL:
-
             eval_summary_hook = tf.train.SummarySaverHook(
                 save_steps=1,
                 output_dir=args.model_dir + "/eval",
