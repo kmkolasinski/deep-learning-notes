@@ -201,10 +201,14 @@ def main(argv):
         tf.summary.scalar('learning_rate', learning_rate)
 
         optimizer = tf.train.AdagradOptimizer(learning_rate=learning_rate)
-        train_op = optimizer.minimize(loss,
-                                      global_step=tf.train.get_global_step())
 
-        return tf.estimator.EstimatorSpec(mode, loss=loss, train_op=train_op,
+        gvs = optimizer.compute_gradients(total_loss)
+        capped_gvs = [
+            (tf.clip_by_value(grad, -1., 1.), var) for grad, var in gvs
+        ]
+        train_op = optimizer.apply_gradients(capped_gvs, global_step=global_step)
+
+        return tf.estimator.EstimatorSpec(mode, loss=total_loss, train_op=train_op,
                                           training_hooks=[train_summary_hook])
 
     classifier = tf.estimator.Estimator(
