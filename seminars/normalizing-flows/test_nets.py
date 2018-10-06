@@ -110,3 +110,37 @@ class TestSimpleFlow(tf.test.TestCase):
                 self.assertAllClose(
                     np.mean(normed_x.reshape([-1, nc]), axis=0), [0.0] * nc, atol=0.1
                 )
+
+    def test_openai_template(self):
+
+        np.random.seed(642201)
+        images_fwd = tf.placeholder(tf.float32, [8, 16, 16, 24])
+        images_bwd = tf.placeholder(tf.float32, [8, 16, 16, 24])
+        template = nets.OpenAITemplate(width=32)
+        block_fn = template.create_template_fn("Block")
+        shift, scale = block_fn(images_fwd)
+
+        all_trainable_fwd = tf.trainable_variables()
+
+        shift_bwd, scale_bwd = block_fn(images_bwd)
+
+        all_trainable_bwd = tf.trainable_variables()
+
+        self.assertEqual(shift.shape.as_list(), [8, 16, 16, 24])
+        self.assertEqual(scale.shape.as_list(), [8, 16, 16, 24])
+
+        self.assertEqual(all_trainable_fwd, all_trainable_bwd)
+
+        with self.test_session() as sess:
+            sess.run(tf.global_variables_initializer())
+            images = np.random.rand(8, 16, 16, 24)
+            shift, scale = sess.run([shift, scale], feed_dict={
+                images_fwd: images
+            })
+
+            shift_bwd, scale_bwd = sess.run([shift_bwd, scale_bwd], feed_dict={
+                images_bwd: images
+            })
+            print(all_trainable_bwd)
+            self.assertAllClose(shift, shift_bwd)
+            self.assertAllClose(scale, scale_bwd)

@@ -179,6 +179,64 @@ class LogitifyImage(FlowLayer):
         return x, logdet + dlogdet, z
 
 
+class QuantizeImage(FlowLayer):
+    """Glow image quantization, according to the paper reducing
+    number of bits per image improved model.
+    * This flow layer does not change Jacobian, however it is
+        approximately invertible.
+    * After this Layer the image is mapped from [0, 1] to [-0.5, 0.5] range.
+    """
+    def __init__(
+        self,
+        num_bits: int = 8,
+        **kwargs
+    ):
+        """
+        Quantize image flow layer. The input image should be normalized to 1.
+
+        Args:
+            num_bits: number of bit per color channel
+            **kwargs:
+        """
+        super().__init__(**kwargs)
+        self._num_bits = num_bits
+
+    def forward(self, x, logdet, z, is_training: bool = True):
+        """x must be in range [0, 1].
+        The output image is in range [-0.5, 0.5]"""
+        xs = K.int_shape(x)
+        assert len(xs) == 4
+
+        num_bins = 2. ** self._num_bits
+
+        if self._num_bits < 8:
+            x = tf.floor(255 * x / 2 ** (8 - self._num_bits))
+            x = x / num_bins
+        x = x - 0.5
+        y = x + tf.random_uniform(tf.shape(x), 0, 1. / num_bins)
+        return y, logdet, z
+
+    def backward(self, y, logdet, z, is_training: bool = True):
+        x = y + .5
+        return x, logdet, z
+
+    def to_uint8(self, y: tf.Tensor) -> tf.Tensor:
+        """
+        Convert images to uint8 type.
+        Args:
+            y: tensor of shape [batch_size, height, width, num_channels],
+               being the output of the backward layer
+
+        Returns:
+            x: tensor of the same shape
+        """
+        num_bins = 2. ** self._num_bits
+        x = tf.cast(tf.clip_by_value(
+            tf.floor(y * num_bins) * (256. / num_bins), 0, 255
+        ), 'uint8')
+        return x
+
+
 class SqueezingLayer(FlowLayer):
     """Squeeze image spatial dimensionality. For example is the
     input image has:

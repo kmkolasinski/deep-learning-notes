@@ -1,4 +1,4 @@
-from typing import List, Callable, Dict, Any, Tuple
+from typing import List, Callable, Dict, Any, Tuple, NamedTuple
 
 import numpy as np
 import tensorflow as tf
@@ -141,71 +141,48 @@ class ResentTemplate(TemplateFn):
         )
 
 
-def openai_template_fn(
-        name: str,
-        activation_fn=tf.nn.relu,
-        width: int = 64,
-        use_skip_connection: bool = False
-):
+class OpenAITemplate(NamedTuple):
     """
-    Creates simple shallow network. Note that this function will return a
-    tensorflow template.
-    Args:
-        name: a scope name of the network
-        activation_fn: activation function used after each conv layer
-        width: number of filters in the shallow network
-        use_skip_connection: if True this network works will behave like
-            Resnet
-
-    Returns:
-        a template function
+    activation_fn: activation function used after each conv layer
+    width: number of filters in the shallow network
     """
-    def _shift_and_log_scale_fn(x: tf.Tensor):
-        shape = K.int_shape(x)
-        num_channels = shape[3]
+    activation_fn: Callable[[tf.Tensor], tf.Tensor] = tf.nn.relu
+    width: int = 32
 
-        with tf.variable_scope("BlockNN"):
-            h = x
-            h = activation_fn(ops.conv2d("l_1", h, width))
-            h = activation_fn(ops.conv2d("l_2", h, width, filter_size=[1, 1]))
-
-            if use_skip_connection:
-                h = h + x
-
-            # create shift and log_scale with zero initialization
-            shift_log_scale = tf_layers.conv2d(
-                h,
-                num_outputs=2 * num_channels,
-                weights_initializer=tf.random_normal_initializer(stddev=0.001),
-                kernel_size=3,
-                activation_fn=None,
-            )
-
-            shift = shift_log_scale[:, :, :, :num_channels]
-            log_scale = shift_log_scale[:, :, :, num_channels:]
-
-            log_scale = tf.clip_by_value(log_scale, -15.0, 15.0)
-            return shift, log_scale
-
-    return template_ops.make_template(name, _shift_and_log_scale_fn)
-
-
-class OpenAITemplate(TemplateFn):
-    def __init__(
+    def create_template_fn(
             self,
-            activation_fn=tf.nn.relu,
-            width: int = 32,
-            use_skip_connection: bool = False,
-    ) -> None:
-        params = {
-            "activation_fn": activation_fn,
-            "width": width,
-            "use_skip_connection": use_skip_connection,
-        }
-        super().__init__(
-            params=params,
-            template_fn=openai_template_fn
-        )
+            name: str,
+    ) -> Callable[[tf.Tensor], Tuple[tf.Tensor, tf.Tensor]]:
+        """
+        Creates simple shallow network. Note that this function will return a
+        tensorflow template.
+        Args:
+            name: a scope name of the network
+
+
+        Returns:
+            a template function
+        """
+
+        def _shift_and_log_scale_fn(x: tf.Tensor):
+            shape = K.int_shape(x)
+            num_channels = shape[3]
+
+            with tf.variable_scope("BlockNN"):
+                h = x
+                h = self.activation_fn(ops.conv2d("l_1", h, self.width))
+                h = self.activation_fn(
+                    ops.conv2d("l_2", h, self.width, filter_size=[1, 1]))
+                # create shift and log_scale with zero initialization
+                shift_log_scale = ops.conv2d_zeros(
+                    "l_last", h, 2 * num_channels
+                )
+                shift = shift_log_scale[:, :, :, 0::2]
+                log_scale = shift_log_scale[:, :, :, 1::2]
+                log_scale = tf.clip_by_value(log_scale, -15.0, 15.0)
+                return shift, log_scale
+
+        return template_ops.make_template(name, _shift_and_log_scale_fn)
 
 
 def step_flow(
@@ -259,6 +236,7 @@ def initialize_actnorms(
 def create_simple_flow(
         num_steps: int = 1,
         num_scales: int = 3,
+        num_bits: int = 5,
         template_fn: TemplateFn = ResentTemplate()
 ) -> (List[fl.FlowLayer], List[fl.ActnormLayer]):
     """Create Glow model. This implementation may slightly differ from the
@@ -268,6 +246,7 @@ def create_simple_flow(
         num_steps: number of steps per single scale, a K parameter from the paper
         num_scales: number of scales, a L parameter from the paper. Each scale
             reduces the tensor spatial dimension by 2.
+        num_bits: input image quantization
         template_fn: a template function used in AffineCoupling layer
 
     Returns:
@@ -275,7 +254,7 @@ def create_simple_flow(
         actnorms: a list of actnorm layers which can be initialized using data
             dependent initialization. See: initialize_actnorms() function.
     """
-    layers = [fl.LogitifyImage()]
+    layers = [fl.QuantizeImage(num_bits=num_bits)]
     actnorm_layers = []
     for scale in range(num_scales):
         scale_name = f"Scale{scale+1}"
@@ -296,3 +275,4 @@ def create_simple_flow(
         ]
 
     return layers, actnorm_layers
+

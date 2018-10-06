@@ -119,6 +119,44 @@ class TestLayers(tf.test.TestCase):
             self.assertAllClose(logdet_rec, [10.0] * 8, atol=0.01)
             self.assertAllClose(images_np, x_rec, atol=0.01)
 
+    def test_quantize_image_layer_conv(self):
+        np.random.seed(52321)
+        images_np = np.random.rand(8, 32, 32, 3)
+        images = tf.to_float(images_np)
+
+        flow = fl.InputLayer(images)
+        layer = fl.QuantizeImage(num_bits=8)
+        self.forward_inverse(layer, flow, atol=1.5 / 256)
+
+        new_flow = layer(flow, forward=True)
+        flow_rec = layer(new_flow, forward=False)
+        x, logdet, z = new_flow
+        x_rec, logdet_rec, z = flow_rec
+
+        self.assertEqual(z, None)
+        self.assertEqual(x.shape.as_list(), [8, 32, 32, 3])
+        self.assertEqual(x_rec.shape.as_list(), [8, 32, 32, 3])
+        # less bits
+        flow = fl.InputLayer(images)
+        layer = fl.QuantizeImage(num_bits=5)
+        self.forward_inverse(layer, flow, atol=1.5 / 32)
+
+        layer = fl.QuantizeImage(num_bits=4)
+        new_flow = layer(flow, forward=True)
+        flow_rec = layer(new_flow, forward=False)
+
+        with self.test_session() as sess:
+            x_rec_uint8 = layer.to_uint8(flow_rec[0])
+            self.assertEqual(x_rec_uint8.dtype, tf.uint8)
+            x_rec_uint8 = sess.run(x_rec_uint8)
+            self.assertAllGreaterEqual(x_rec_uint8, 0)
+            self.assertAllLessEqual(x_rec_uint8, 255)
+            self.assertEqual(np.unique(x_rec_uint8).shape, (2**4, ))
+
+        with self.assertRaises(AssertionError):
+            layer = fl.QuantizeImage(num_bits=4)
+            self.forward_inverse(layer, flow, atol=1 / 32)
+
     def test_squeezing_layer_conv(self):
         images = np.random.rand(8, 32, 32, 1)
         images = tf.to_float(images)
