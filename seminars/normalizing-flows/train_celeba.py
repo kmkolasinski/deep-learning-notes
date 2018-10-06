@@ -32,6 +32,7 @@ parser.add_argument('--sample_beta', type=float, default=0.9,
 parser.add_argument('--save_secs', type=int, default=100, help='save_secs')
 # scheduler
 parser.add_argument('--lr', type=float, default=0.001, help='initial lr')
+parser.add_argument('--clip', type=float, default=0.0, help='clip gradients')
 parser.add_argument('--decay_steps', type=int, default=10000,
                     help='decay_steps')
 parser.add_argument('--decay_rate', type=float, default=0.5, help='decay_rate')
@@ -201,12 +202,14 @@ def main(argv):
         tf.summary.scalar('learning_rate', learning_rate)
 
         optimizer = tf.train.AdagradOptimizer(learning_rate=learning_rate)
-
-        gvs = optimizer.compute_gradients(total_loss)
-        capped_gvs = [
-            (tf.clip_by_value(grad, -1., 1.), var) for grad, var in gvs
-        ]
-        train_op = optimizer.apply_gradients(capped_gvs, global_step=global_step)
+        if args.clip > 0.0:
+            gvs = optimizer.compute_gradients(total_loss)
+            capped_gvs = [
+                (tf.clip_by_value(grad, -1., 1.), var) for grad, var in gvs
+            ]
+            train_op = optimizer.apply_gradients(capped_gvs, global_step=global_step)
+        else:
+            train_op = optimizer.minimize(total_loss)
 
         return tf.estimator.EstimatorSpec(mode, loss=total_loss, train_op=train_op,
                                           training_hooks=[train_summary_hook])
