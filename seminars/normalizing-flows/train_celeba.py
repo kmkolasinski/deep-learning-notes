@@ -146,11 +146,14 @@ def main(argv):
         tf.summary.scalar('l2_loss', l2_loss)
 
         # Sampling during training and evaluation
+        prior_y = tfd.MultivariateNormalDiag(loc=tf.zeros_like(y_flatten),
+                                             scale_diag=sample_beta * tf.ones_like(y_flatten))
+        prior_z = tfd.MultivariateNormalDiag(loc=tf.zeros_like(z_flatten),
+                                             scale_diag=sample_beta * tf.ones_like(z_flatten))
+
         sample_y_flatten = prior_y.sample()
-        sample_y = sample_beta * tf.reshape(sample_y_flatten,
-                                            y.shape.as_list())
-        sample_z = sample_beta * tf.reshape(prior_z.sample(),
-                                            z.shape.as_list())
+        sample_y = tf.reshape(sample_y_flatten, y.shape.as_list())
+        sample_z = tf.reshape(prior_z.sample(), z.shape.as_list())
         sampled_logdet = prior_y.log_prob(sample_y_flatten)
 
         inverse_flow = sample_y, sampled_logdet, sample_z
@@ -168,7 +171,7 @@ def main(argv):
         )
 
         grid_summary = tf.summary.image(
-            f'samples{sample_beta}', grid_image, max_outputs=50
+            f'samples{sample_beta}', grid_image, max_outputs=10
         )
 
         if mode == tf.estimator.ModeKeys.EVAL:
@@ -180,7 +183,7 @@ def main(argv):
 
             return tf.estimator.EstimatorSpec(
                 mode,
-                loss=loss,
+                loss=total_loss,
                 evaluation_hooks=[eval_summary_hook]
             )
 
