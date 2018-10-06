@@ -225,7 +225,7 @@ class QuantizeImage(FlowLayer):
         Convert images to uint8 type.
         Args:
             y: tensor of shape [batch_size, height, width, num_channels],
-               being the output of the backward layer
+               being the output of the backward() function
 
         Returns:
             x: tensor of the same shape

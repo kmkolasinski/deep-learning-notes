@@ -35,19 +35,14 @@ parser.add_argument('--lr', type=float, default=0.001, help='initial lr')
 parser.add_argument('--decay_steps', type=int, default=10000,
                     help='decay_steps')
 parser.add_argument('--decay_rate', type=float, default=0.5, help='decay_rate')
-# resnet
-parser.add_argument('--units_factor', type=int, default=4,
-                    help='resnet units_factor')
-parser.add_argument('--units_width', type=int, default=0,
-                    help='resnet units width if units_width=0 units_factor is used')
-parser.add_argument('--skip_connection', type=bool, default=True,
-                    help='use skip connection in resnet or not')
-parser.add_argument('--num_blocks', type=int, default=2,
-                    help='resnet num_blocks')
-parser.add_argument('--selu_reg', type=float, default=0.0001, help='selu_reg')
+# coupling layer NN
+parser.add_argument('--width', type=int, default=128)
+
 # flow
-parser.add_argument('--num_steps', type=int, default=4)
+parser.add_argument('--num_steps', type=int, default=24)
 parser.add_argument('--num_scales', type=int, default=3)
+parser.add_argument('--num_bits', type=int, default=5)
+
 
 ACTNORM_INIT_OPS = "ACTNORM_INIT_OPS"
 
@@ -57,10 +52,9 @@ class InitActnorms(SessionRunHook):
     def after_create_session(self, session, coord):
         # When this is called, the graph is finalized and
         # ops can no longer be added to the graph.
-        print('Session created.')
         init_ops = tf.get_collection(ACTNORM_INIT_OPS)
         print("Initializing actnorms")
-        num_steps = 50
+        num_steps = 30
 
         for init_op in tqdm(init_ops):
             for i in range(num_steps):
@@ -83,25 +77,22 @@ def main(argv):
         return {"images": x_train_samples}, {}
 
     def get_eval_input_fn():
-        x_train_samples = utils.create_tfrecord_dataset_iterator(
+        x_valid_samples = utils.create_tfrecord_dataset_iterator(
             args.dataset_path, batch_size=batch_size, buffer_size=0,
             image_size=args.image_size
         )
-        return {"images": x_train_samples}, {}
+        return {"images": x_valid_samples}, {}
 
     def model_fn(features, labels, mode, params):
 
-        nn_template_fn = nets.ResentTemplate(
-            units_factor=args.units_factor,
-            num_blocks=args.num_blocks,
-            units_width=args.units_width,
-            skip_connection=args.skip_connection,
-            selu_reg_scale=args.selu_reg
+        nn_template_fn = nets.OpenAITemplate(
+            width=args.width
         )
 
         layers, actnorm_layers = nets.create_simple_flow(
             num_steps=args.num_steps,
             num_scales=args.num_scales,
+            num_bits=args.num_bits,
             template_fn=nn_template_fn
         )
 
@@ -147,17 +138,11 @@ def main(argv):
         l2_loss = l2_reg * tf.add_n(
             [tf.nn.l2_loss(v) for v in trainable_variables])
 
-        selu_losses = tf.get_collection(tf_ops.SELU_CONV2D_REG_LOSS)
-        selu_reg_loss = tf.add_n(selu_losses)
-        total_loss = l2_loss + loss + selu_reg_loss
-
-        mle_per_pixel = loss / image_size / image_size / 3
+        total_loss = l2_loss + loss
 
         tf.summary.scalar('total_loss', total_loss)
         tf.summary.scalar('loss', loss)
         tf.summary.scalar('l2_loss', l2_loss)
-        tf.summary.scalar('mle_per_pixel', mle_per_pixel)
-        tf.summary.scalar('selu_reg_loss', selu_reg_loss)
 
         # Sampling during training and evaluation
         sample_y_flatten = prior_y.sample()
@@ -170,9 +155,12 @@ def main(argv):
         inverse_flow = sample_y, sampled_logdet, sample_z
         sampled_flow = model_flow(inverse_flow, forward=False)
         x_flow_sampled, _, _ = sampled_flow
+        # convert to uint8
+        quantize_image_layer = layers[0]
+        x_flow_sampled_uint = quantize_image_layer.to_uint8(x_flow_sampled)
 
         grid_image = tf.contrib.gan.eval.image_grid(
-            x_flow_sampled,
+            x_flow_sampled_uint,
             grid_shape=[4, batch_size // 4],
             image_shape=(image_size, image_size),
             num_channels=3

@@ -158,8 +158,6 @@ class OpenAITemplate(NamedTuple):
         tensorflow template.
         Args:
             name: a scope name of the network
-
-
         Returns:
             a template function
         """
