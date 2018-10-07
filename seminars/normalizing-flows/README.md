@@ -1,4 +1,4 @@
-# An implementation of the GLOW paper
+# An implementation of the GLOW paper and simple normalizing flows lib
 
 This code is suppose to be easy to read, experiment and extend,
 see example results below.
@@ -71,7 +71,7 @@ python ../models/real_nvp/celeba_formatting.py \
 
 * Samples from MNIST model
 
-  <img src="images/mnist.png" alt="mnist">
+  <img src="images/mnist.png" alt="mnist", width="50%" height="50%">
 
 ### CelebA
 
