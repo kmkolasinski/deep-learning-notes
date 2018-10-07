@@ -154,7 +154,7 @@ def trainer(sess, num_steps, train_op, feed_dict_fn, metrics, hooks):
                 hook.run()
 
 
-def plot_4x4_grid(images: np.ndarray, shape: tuple = (28, 28), cmap="gray"):
+def plot_4x4_grid(images: np.ndarray, shape: tuple = (28, 28), cmap="gray", figsize=(4, 4)):
     """
     Plot multiple images in subplot grid.
     :param images: tensor with MNIST images with shape [16, *shape]
@@ -163,7 +163,7 @@ def plot_4x4_grid(images: np.ndarray, shape: tuple = (28, 28), cmap="gray"):
     assert images.shape[0] >= 16
     dist_samples_np = images[:16, ...].reshape([4, 4, *shape])
 
-    plt.figure(figsize=(4, 4))
+    plt.figure(figsize=figsize)
     for i in range(4):
         for j in range(4):
             plt.subplot(4, 4, i * 4 + j + 1)
