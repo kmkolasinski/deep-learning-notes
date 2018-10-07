@@ -1,22 +1,21 @@
 """Utility functions used in notebooks"""
 from collections import defaultdict
-from pathlib import Path
 from typing import Optional, Callable, List
 
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
-from tensorflow import gfile
 from tqdm import tqdm
 
 
 def numpy_array_to_dataset(
-    array: np.array,
-    buffer_size: int = 512,
-    batch_size: int = 100,
-    num_parallel_batches: int = 16,
-    preprocess_fn: Optional[Callable] = None,
+        array: np.array,
+        buffer_size: int = 512,
+        batch_size: int = 100,
+        num_parallel_batches: int = 16,
+        preprocess_fn: Optional[Callable] = None,
 ) -> tf.data.Dataset:
+    """Convert numpy array to tf.data.Dataset"""
     dataset = tf.data.Dataset.from_tensor_slices(array.astype(np.float32))
     dataset = dataset.apply(
         tf.contrib.data.shuffle_and_repeat(buffer_size=buffer_size, count=-1)
@@ -37,13 +36,25 @@ def numpy_array_to_dataset(
 
 
 def create_tfrecord_dataset_iterator(
-    tfrecord_paths: List[str],
-    image_size: int = 48,
-    batch_size: int = 16,
-    buffer_size: int = 512,
-    num_parallel_batches: int = 16,
+        tfrecord_paths: List[str],
+        image_size: int = 48,
+        batch_size: int = 16,
+        buffer_size: int = 512,
+        num_parallel_batches: int = 16,
 ) -> tf.Tensor:
+    """
+    Celeba dataset loader
+    Args:
+        tfrecord_paths: path to the tfrecords with Celeba images
+        image_size: a resize size of the input images
+        batch_size: batch size
+        buffer_size: shuffle buffer size
+        num_parallel_batches: number of parallel calls when reading
+            and preparing dataset
 
+    Returns:
+        image a tensor iterator of shape [batch_size, image_size, image_size, 3]
+    """
     dataset = tf.data.TFRecordDataset(tfrecord_paths)
 
     def preprocess_images(example):
@@ -61,7 +72,8 @@ def create_tfrecord_dataset_iterator(
 
     if buffer_size > 0:
         dataset = dataset.apply(
-            tf.contrib.data.shuffle_and_repeat(buffer_size=buffer_size, count=-1)
+            tf.contrib.data.shuffle_and_repeat(buffer_size=buffer_size,
+                                               count=-1)
         )
 
     dataset = dataset.apply(
@@ -112,7 +124,8 @@ class Metrics:
 
 
 class PlotMetricsHook:
-    def __init__(self, metrics: Metrics, step=1000, figsize=(15, 3), skip_steps=5):
+    def __init__(self, metrics: Metrics, step=1000, figsize=(15, 3),
+                 skip_steps=5):
         self.metrics = metrics
         self.step = step
         self.figsize = figsize
@@ -127,7 +140,7 @@ class PlotMetricsHook:
         for k, (m, values) in enumerate(self.metrics.metrics.items()):
             plt.subplot(1, self.metrics.num_metrics, k + 1)
             plt.title(m)
-            vals = values[self.skip_steps :]
+            vals = values[self.skip_steps:]
             plt.plot(vals)
             vals = np.array(vals)
             if len(vals) > 0:
@@ -154,7 +167,12 @@ def trainer(sess, num_steps, train_op, feed_dict_fn, metrics, hooks):
                 hook.run()
 
 
-def plot_4x4_grid(images: np.ndarray, shape: tuple = (28, 28), cmap="gray", figsize=(4, 4)):
+def plot_4x4_grid(
+        images: np.ndarray,
+        shape: tuple = (28, 28),
+        cmap="gray",
+        figsize=(4, 4)
+) -> None:
     """
     Plot multiple images in subplot grid.
     :param images: tensor with MNIST images with shape [16, *shape]
@@ -174,7 +192,15 @@ def plot_4x4_grid(images: np.ndarray, shape: tuple = (28, 28), cmap="gray", figs
 
 
 def plot_grid(images: tf.Tensor) -> tf.Tensor:
+    """
+    Plot grid of images using tf.contrib.gan.eval.image_grid
+    Args:
+        images: a tensor with batch of images of shape
+            [batch_size, size, size, 3]
 
+    Returns:
+        a grid image
+    """
     batch_size, image_size = images.shape.as_list()[:2]
 
     grid_image = tf.contrib.gan.eval.image_grid(

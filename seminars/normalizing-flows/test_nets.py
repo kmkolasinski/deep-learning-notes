@@ -27,9 +27,13 @@ class TestSimpleFlow(tf.test.TestCase):
 
     def test_create_simple_flow(self):
         np.random.seed(642201)
-        images = tf.placeholder(tf.float32, [16, 32, 32, 1])
 
-        layers, actnorm_layers = nets.create_simple_flow(num_steps=2, num_scales=4)
+        images = tf.placeholder(tf.float32, [16, 32, 32, 1])
+        layers, actnorm_layers = nets.create_simple_flow(
+            num_steps=2,
+            num_scales=4,
+            num_bits=8
+        )
         flow = fl.InputLayer(images)
         model_flow = fl.ChainLayer(layers)
         output_flow = model_flow(flow, forward=True)
@@ -41,7 +45,7 @@ class TestSimpleFlow(tf.test.TestCase):
                 init_op = actnorm_layer.get_ddi_init_ops(10)
                 noise = np.random.rand(16, 32, 32, 1)
                 # fit actnorms to certain noise
-                for i in range(20):
+                for i in range(30):
                     sess.run(init_op, feed_dict={images: noise})
 
                 actnorm_flow = actnorm_layer._forward_outputs[0]

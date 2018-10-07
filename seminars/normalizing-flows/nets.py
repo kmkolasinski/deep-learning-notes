@@ -143,6 +143,9 @@ class ResentTemplate(TemplateFn):
 
 class OpenAITemplate(NamedTuple):
     """
+    A shallow neural network used by GLOW paper:
+    * https://github.com/openai/glow
+
     activation_fn: activation function used after each conv layer
     width: number of filters in the shallow network
     """
@@ -235,8 +238,8 @@ def create_simple_flow(
         num_steps: int = 1,
         num_scales: int = 3,
         num_bits: int = 5,
-        template_fn: TemplateFn = ResentTemplate()
-) -> (List[fl.FlowLayer], List[fl.ActnormLayer]):
+        template_fn: Any = ResentTemplate()
+) -> Tuple[List[fl.FlowLayer], List[fl.ActnormLayer]]:
     """Create Glow model. This implementation may slightly differ from the
     official one. For example the last layer here is the fl.FactorOutLayer
 
@@ -273,4 +276,3 @@ def create_simple_flow(
         ]
 
     return layers, actnorm_layers
-

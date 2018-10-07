@@ -1,4 +1,9 @@
-"Copied from GLOW github"
+"""
+This file is copied from GLOW github:
+https://github.com/openai/glow/blob/master/tfops.py
+
+And is used only by one class in nets.py: OpenAITemplate
+"""
 
 import numpy as np
 import tensorflow as tf

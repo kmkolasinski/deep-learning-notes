@@ -1,6 +1,6 @@
 export CUDA_VISIBLE_DEVICES=0
 MODEL_PATH=./experiments/model
-DATASET_PATH=./datasets/celeba/celeba_valid.tfrecords
+DATASET_PATH=./datasets/celeba/celeba_train.tfrecords
 cd ..
 
 python ./train_celeba.py \

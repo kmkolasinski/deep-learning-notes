@@ -4,11 +4,11 @@ import flow_layers as fl
 import tensorflow as tf
 import numpy as np
 from tensorflow.contrib import framework as tf_framework
+import tensorflow.contrib.layers as tf_layers
+from tensorflow.python.ops import template as template_ops
 
 K = tf.keras.backend
 keras = tf.keras
-import tensorflow.contrib.layers as tf_layers
-from tensorflow.python.ops import template as template_ops
 
 
 def _shift_and_log_scale_fn_template(name):

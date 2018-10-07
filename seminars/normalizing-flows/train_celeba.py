@@ -1,3 +1,15 @@
+"""
+WARNING:
+This script is supposed to train normalizing flow on Celeba dataset
+however, it seems, that it contains some bug since I could not
+obtain the same results as in the notebooks. The definition of the
+estimator is strictly copied from notebooks.
+
+NOTE:
+     * once the bug is solved one can used experiments/train_celeba_TEMPLATE.sh
+       script to train models without notebooks.
+"""
+
 import argparse
 from pprint import pprint
 
@@ -8,7 +20,6 @@ from tqdm import tqdm
 
 import flow_layers as fl
 import nets
-import tf_ops
 import utils
 
 parser = argparse.ArgumentParser()
