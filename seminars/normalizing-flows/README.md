@@ -71,7 +71,7 @@ python ../models/real_nvp/celeba_formatting.py \
 
 * Samples from MNIST model
 
-  <img src="images/mnist.png" alt="mnist", width="50%" height="50%">
+  <img src="images/mnist.png" alt="mnist" width="50%" height="50%">
 
 ### CelebA
 
