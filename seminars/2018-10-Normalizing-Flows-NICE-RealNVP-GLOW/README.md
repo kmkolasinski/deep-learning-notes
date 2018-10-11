@@ -1,4 +1,4 @@
-<img src="notebooks/images/header.jpg" alt="header">
+<img src="notebooks/images/header2.jpg" alt="header">
 
 # An implementation of the GLOW paper and simple normalizing flows lib
 
