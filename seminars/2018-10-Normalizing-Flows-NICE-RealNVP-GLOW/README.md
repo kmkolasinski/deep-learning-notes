@@ -1,3 +1,5 @@
+<img src="notebooks/images/header.png" alt="header">
+
 # An implementation of the GLOW paper and simple normalizing flows lib
 
 This code is suppose to be easy to read, experiment and extend,
