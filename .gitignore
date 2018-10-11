@@ -4,5 +4,6 @@ models
 __pycache__
 .idea
 *.pkl
+.pytest_cache
 subclasses-omniglot/models
 
