@@ -1,6 +1,0 @@
-logs
-.pytest
-.ipynb_checkpoints
-datasets
-model
-experiments
