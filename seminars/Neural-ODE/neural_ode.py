@@ -1,44 +1,49 @@
 from typing import Optional
-
+import numpy as np
 import tensorflow as tf
-from tensorflow.python.keras import Model
-import tensorflow.contrib.eager as tfe
 
 keras = tf.keras
-import numpy as np
+
+
+def update(zipped, update_op):
+    outputs = []
+    for elems in zipped:
+        if type(elems[0]) == list:
+            outs = [update_op(*tensors) for tensors in zip(*elems)]
+        else:
+            outs = update_op(*elems)
+        outputs.append(outs)
+    return outputs
 
 
 def euler_update(h_list, dh_list, dt):
-    outputs = []
-    for h, dh in zip(h_list, dh_list):
-        if type(h) == list:
-            outs = [hp + dt * dhp for hp, dhp in zip(h, dh)]
-        else:
-            outs = h + dt * dh
-        outputs.append(outs)
-
-    return outputs
+    return update(zip(h_list, dh_list), lambda h, dh: h + dt * dh)
 
 
-def euler_step(func, t, dt, state):
-    dstate = func(t, state)
-    return euler_update(state, dstate, dt)
+def euler_step(func, dt, state):
+    return euler_update(state, func(state), dt)
 
 
-def rk2_step(func, t, dt, state):
-    k1 = func(t, state)
-    k2 = func(t, euler_update(state, k1, dt))
+def rk2_step(func, dt, state):
+    k1 = func(state)
+    k2 = func(euler_update(state, k1, dt))
 
-    outputs = []
-    for hprim, k1prim, k2prim in zip(state, k1, k2):
-        if type(hprim) == list:
-            outs = [hbis + dt * (k1bis + k2bis) / 2 for hbis, k1bis, k2bis in
-                    zip(hprim, k1prim, k2prim)]
-        else:
-            outs = hprim + dt * (k1prim + k2prim) / 2
+    return update(
+        zip(state, k1, k2),
+        lambda h, dk1, dk2: h + dt * (dk1 + dk2) / 2
+    )
 
-        outputs.append(outs)
-    return outputs
+
+def rk4_step(func, dt, state):
+    k1 = func(state)
+    k2 = func(euler_update(state, k1, dt / 2))
+    k3 = func(euler_update(state, k2, dt / 2))
+    k4 = func(euler_update(state, k3, dt))
+
+    return update(
+        zip(state, k1, k2, k3, k4),
+        lambda h, dk1, dk2, dk3, dk4: h + dt * (dk1 + 2 * dk2 + 2 * dk3 + dk4) / 6
+    )
 
 
 class NeuralODE:
@@ -51,59 +56,58 @@ class NeuralODE:
 
     def forward(self, h_input, return_states: Optional[str] = None):
 
-        def _forward_dynamics(t, state):
-            return [self._model(inputs=[t, state[0]])]
+        def _forward_dynamics(state):
+            t = state[0]
+            y = state[1]
+            return [1, self._model(inputs=[t, y])]
 
-        if return_states == "numpy":
-            states = [h_input.numpy()]
-        elif return_states == "tf":
-            states = [h_input]
+        states = []
 
-        state = [h_input]
+        t0 = tf.to_float(self._t[0])
+        state = [t0, h_input]
         for dt, t in zip(self._deltas_t, self._t):
 
             state = self._solver(
                 func=_forward_dynamics,
-                t=tf.to_float(t),
                 dt=tf.to_float(dt),
                 state=state
             )
 
             if return_states == "numpy":
-                states.append(state[0].numpy())
+                states.append(state[1].numpy())
             elif return_states == "tf":
-                states.append(state[0])
+                states.append(state[1])
 
         if return_states:
-            return state[0], states
-        return state[0]
+            return state[1], states
+        return state[1]
 
     def _backward_dynamics(self, state):
-        ht = state[0]
-        at = - state[1]
+        t = state[0]
+        ht = state[1]
+        at = - state[2]
 
         with tf.GradientTape() as g:
-            g.watch(ht)
-            ht_new = self._model(ht)
+            g.watch([ht])
+            ht_new = self._model(inputs=[t, ht])
 
         gradients = g.gradient(
             target=ht_new,
             sources=[ht] + self._model.weights,
             output_gradients=at
         )
-        return [ht_new, *gradients]
+        return [1, ht_new, *gradients]
 
     def backward(self, h_output, grad_h_output):
 
         dWeights = [tf.zeros_like(w) for w in self._model.weights]
+        t0 = tf.to_float(self._t[-1])
+        state = [t0, h_output, grad_h_output, *dWeights]
+        for dt in self._deltas_t[::-1]:
+            state = self._solver(
+                self._backward_dynamics,
+                dt=- tf.to_float(dt),
+                state=state
+            )
 
-        state = [h_output, grad_h_output, *dWeights]
-        for dt, t in zip(self._deltas_t[::-1], self._t[::-1]):
-            state = self._solver(self._backward_dynamics, state, -dt)
-
-        return state[0], state[1], state[2:]
-
-    # def defun(self):
-    #     self._model.call = tfe.defun(self._model.call)
-    #     self.forward = tfe.defun(self.forward)
-    #     self.backward = tfe.defun(self.backward)
+        return state[1], state[2], state[3:]
