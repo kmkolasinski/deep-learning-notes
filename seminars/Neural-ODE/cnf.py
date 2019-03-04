@@ -1,5 +1,4 @@
 import tensorflow as tf
-import numpy as np
 
 keras = tf.keras
 
@@ -31,6 +30,7 @@ class HyperNet(tf.keras.Model):
         W = tf.reshape(
             params[:self.blocksize],
             shape=[self.n_ensemble, self.input_dim, 1])
+
         U = tf.reshape(
             params[self.blocksize:2 * self.blocksize],
             shape=[self.n_ensemble, 1, self.input_dim])
@@ -60,11 +60,8 @@ class CNF(tf.keras.Model):
 
     def call(self, inputs, **kwargs):
         t, x = inputs
-
         x = x[:, :self.hyper_net.input_dim]
-
         W, B, U = self.hyper_net(t)
-
         X = tf.tile(tf.expand_dims(x, 0), [self.hyper_net.n_ensemble, 1, 1])
 
         with tf.GradientTape() as g:
