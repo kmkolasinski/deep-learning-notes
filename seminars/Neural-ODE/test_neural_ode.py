@@ -25,12 +25,11 @@ class DoubleSineDumpingModel(tf.keras.Model):
 
 
 class NNModule(tf.keras.Model):
-
     def __init__(self):
-        super(NNModule, self).__init__(name='Module')
+        super(NNModule, self).__init__(name="Module")
         self.num_filters = 3
-        self.dense_1 = keras.layers.Dense(self.num_filters, activation='tanh')
-        self.dense_2 = keras.layers.Dense(self.num_filters, activation='tanh')
+        self.dense_1 = keras.layers.Dense(self.num_filters, activation="tanh")
+        self.dense_2 = keras.layers.Dense(self.num_filters, activation="tanh")
 
     def call(self, inputs, **kwargs):
         t, x = inputs
@@ -44,7 +43,6 @@ class NNModule(tf.keras.Model):
 
 
 class NNGradientModule(NNModule):
-
     def call(self, inputs, **kwargs):
         t, x = inputs
         x, y = tf.split(x, 2, axis=1)
@@ -55,9 +53,7 @@ class NNGradientModule(NNModule):
             hy = self.dense_1(y)
 
         gradients = tape.gradient(
-            target=hy,
-            sources=y,
-            output_gradients=tf.ones_like(y)
+            target=hy, sources=y, output_gradients=tf.ones_like(y)
         )
         outputs = tf.concat([hx, gradients], axis=1)
         return outputs
@@ -69,25 +65,20 @@ class NNGradientModule(NNModule):
 
 
 class TestNeuralOde(tf.test.TestCase):
-
     def test_function_integration(self):
         t_max = 1
-        ode = NeuralODE(
-            SineDumpingModel(), t=np.linspace(0, t_max, 1000),
-        )
+        ode = NeuralODE(SineDumpingModel(), t=np.linspace(0, t_max, 1000))
         x0 = tf.to_float([0])
         xN_euler = ode.forward(x0)
 
         ode = NeuralODE(
-            SineDumpingModel(), t=np.linspace(0, t_max, 100),
-            solver=neural_ode.rk2_step
+            SineDumpingModel(), t=np.linspace(0, t_max, 100), solver=neural_ode.rk2_step
         )
 
         xN_rk2 = ode.forward(x0)
 
         ode = NeuralODE(
-            SineDumpingModel(), t=np.linspace(0, t_max, 50),
-            solver=neural_ode.rk4_step
+            SineDumpingModel(), t=np.linspace(0, t_max, 50), solver=neural_ode.rk4_step
         )
 
         xN_rk4 = ode.forward(x0)
@@ -107,22 +98,16 @@ class TestNeuralOde(tf.test.TestCase):
         xy0 = tf.to_float([0.0, 0.0])
         xyN_euler = ode.forward(xy0)
 
-        ode = NeuralODE(
-            DoubleSineDumpingModel(), t=t_grid,
-            solver=neural_ode.rk2_step
-        )
+        ode = NeuralODE(DoubleSineDumpingModel(), t=t_grid, solver=neural_ode.rk2_step)
 
         xyN_rk2 = ode.forward(xy0)
 
-        ode = NeuralODE(
-            DoubleSineDumpingModel(), t=t_grid,
-            solver=neural_ode.rk4_step
-        )
+        ode = NeuralODE(DoubleSineDumpingModel(), t=t_grid, solver=neural_ode.rk4_step)
 
         xyN_rk4 = ode.forward(xy0)
 
         xN_exact = np.log(2 - np.cos(t_max))
-        yN_exact = np.log((np.sin(t_max) + 2)/2)
+        yN_exact = np.log((np.sin(t_max) + 2) / 2)
         xyN_exact = tf.to_float([xN_exact, yN_exact])
 
         self.assertAllClose(xyN_euler, xyN_exact, atol=1e-2)
@@ -205,7 +190,6 @@ class TestNeuralOde(tf.test.TestCase):
         self.assertAllClose(dLdW_exact, dLdW)
 
     def test_grad_no_grad(self):
-
         class CosGradModel(tf.keras.Model):
             def call(self, inputs, **kwargs):
                 t, x = inputs

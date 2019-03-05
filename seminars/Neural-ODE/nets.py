@@ -5,12 +5,11 @@ keras = tf.keras
 
 
 class SimpleModule(tf.keras.Model):
-
     def __init__(self):
-        super(SimpleModule, self).__init__(name='Module')
+        super(SimpleModule, self).__init__(name="Module")
         self.num_filters = 3
-        self.dense_1 = keras.layers.Dense(self.num_filters, activation='tanh')
-        self.dense_2 = keras.layers.Dense(self.num_filters, activation='tanh')
+        self.dense_1 = keras.layers.Dense(self.num_filters, activation="tanh")
+        self.dense_2 = keras.layers.Dense(self.num_filters, activation="tanh")
 
     def call(self, inputs, **kwargs):
         x = self.dense_1(inputs)
@@ -23,7 +22,6 @@ class SimpleModule(tf.keras.Model):
 
 
 class ODEModel(tf.keras.Model):
-
     def __init__(self):
         super(ODEModel, self).__init__()
         self.linear1 = keras.layers.Dense(50)
@@ -37,4 +35,3 @@ class ODEModel(tf.keras.Model):
 
     def compute_output_shape(self, input_shape):
         return input_shape
-

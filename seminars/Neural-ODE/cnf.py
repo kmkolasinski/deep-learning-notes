@@ -77,3 +77,23 @@ class CNF(tf.keras.Model):
         dlogpx = -tf.matmul(dhdX, tf.transpose(U, [0, 2, 1]))
         dlogpx = tf.reduce_mean(dlogpx, axis=0)
         return tf.concat([dx, dlogpx], axis=1)
+
+
+class AffineFlow(tf.keras.Model):
+
+    def __init__(self, dim):
+        super().__init__()
+        self.weight = tf.Variable(np.array([[1, 0], [0, 1]]).astype("float32"), name='weight')
+        self.bias = tf.Variable(np.zeros([1, dim]).astype("float32"), name='bias')
+
+    def linear(self, z):
+        return tf.matmul(z, self.weight) + self.bias
+
+    def call(self, inputs, **kwargs):
+        z, logdet = inputs
+        new_z = self.linear(z)
+        new_logdet = - tf.expand_dims(tf.linalg.trace(self.weight), 0)
+        return new_z, logdet + new_logdet
+
+    def compute_output_shape(self, input_shape):
+        return input_shape

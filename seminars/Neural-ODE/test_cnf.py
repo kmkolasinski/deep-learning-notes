@@ -10,7 +10,6 @@ keras = tf.keras
 
 
 class TestCNF(tf.test.TestCase):
-
     def test_hypernet(self):
 
         net = cnf.HyperNet(input_dim=2, hidden_dim=32, n_ensemble=16)
@@ -31,9 +30,7 @@ class TestCNF(tf.test.TestCase):
         p0 = tf.distributions.Normal(loc=[0.0, 0.0], scale=[1.0, 1.0])
         net = cnf.CNF(input_dim=2, hidden_dim=32, n_ensemble=16)
         ode = neural_ode.NeuralODE(
-            model=net,
-            t=np.linspace(1, 0.0, 10),
-            solver=neural_ode.rk4_step
+            model=net, t=np.linspace(1, 0.0, 10), solver=neural_ode.rk4_step
         )
 
         logdet0 = tf.zeros([32, 1])
@@ -47,7 +44,7 @@ class TestCNF(tf.test.TestCase):
             # L = log(p(zN))
             mle = tf.reduce_sum(p0.log_prob(xN), -1)
             # loss to minimize
-            loss = - tf.reduce_mean(mle - logdetN)
+            loss = -tf.reduce_mean(mle - logdetN)
 
         dloss = g.gradient(loss, hN)
         h0_rec, dLdh0, dLdW = ode.backward(hN, dloss)
