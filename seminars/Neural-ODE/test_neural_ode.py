@@ -84,9 +84,8 @@ class TestNeuralOde(tf.test.TestCase):
         xN_rk4 = ode.forward(x0)
         xN_exact = [np.log(2 - np.cos(t_max))]
 
-        with self.assertRaises(Exception):
-            self.assertAllClose(xN_euler.numpy(), xN_exact, atol=1e-4)
 
+        self.assertAllClose(xN_euler.numpy(), xN_exact, atol=1e-4)
         self.assertAllClose(xN_rk2.numpy(), xN_exact, atol=1e-4)
         self.assertAllClose(xN_rk4.numpy(), xN_exact, atol=1e-4)
 
@@ -111,9 +110,6 @@ class TestNeuralOde(tf.test.TestCase):
         xyN_exact = tf.to_float([xN_exact, yN_exact])
 
         self.assertAllClose(xyN_euler, xyN_exact, atol=1e-2)
-        with self.assertRaises(Exception):
-            self.assertAllClose(xyN_euler, xyN_exact, atol=1e-3)
-
         self.assertAllClose(xyN_rk2, xyN_exact, atol=1e-5)
         self.assertAllClose(xyN_rk4, xyN_exact, atol=1e-6)
 
@@ -240,3 +236,99 @@ class TestNeuralOde(tf.test.TestCase):
 
         self.assertAllClose(dLdx0_grad, dLdx0_exact)
         self.assertAllClose(x0_grad_rec, x0)
+
+    def test_jvp_on_simple_problem(self):
+        tf.set_random_seed(1234)
+        W = np.random.randn(8, 8)
+        some_vec = np.random.randn(3, 8)
+        x0 = tf.random_normal(shape=[3, 8])
+
+        class Affine(tf.keras.Model):
+            def call(self, inputs, **kwargs):
+                t, x = inputs
+                y = tf.matmul(x, tf.to_float(W))
+                return y
+
+        model = Affine()
+        with tf.GradientTape() as g:
+            g.watch(x0)
+            x1 = model([0.0, x0])
+
+        dLdx_jvp = g.gradient(x1, x0, output_gradients=tf.to_float(some_vec))
+
+        with tf.GradientTape() as g:
+            g.watch(x1)
+            x2 = model([0.0, x1])
+            loss = tf.reduce_sum(x2 * tf.to_float(some_vec))
+
+        dLdx_loss = g.gradient(loss, x1)
+
+        self.assertAllClose(dLdx_jvp, dLdx_loss)
+
+    def test_affine_exact_solution(self):
+        tf.set_random_seed(1234)
+        t_grid = np.linspace(0, 1.0, 40)
+
+        W = tf.to_float(np.random.randn(8, 8))
+        x0 = tf.random_normal(shape=[3, 8])
+
+        class Affine(tf.keras.Model):
+            def call(self, inputs, **kwargs):
+                t, x = inputs
+                y = tf.matmul(x, W)
+                return y
+
+        model = Affine()
+        ode = NeuralODE(model, t=t_grid)
+        x1 = ode.forward(x0)
+        x1_exact = tf.matmul(x0, tf.linalg.expm(W))
+        self.assertAllClose(x1, x1_exact, atol=1e-5)
+
+    def test_affine_with_density_exact_solution(self):
+        tf.set_random_seed(1234)
+        t_grid = np.linspace(0, 1.0, 50)
+
+        W = tf.to_float(np.random.randn(8, 8))
+        x0 = tf.random_normal(shape=[3, 8])
+        logdet0 = tf.zeros(shape=[3, 1])
+        h0 = tf.concat([x0, logdet0], axis=1)
+
+        class Affine(tf.keras.Model):
+            def call(self, inputs, **kwargs):
+                t, x = inputs
+                x = x[:, :8]
+                y = tf.matmul(x, W)
+                trace_dens = - tf.reshape(tf.trace(W), [1, 1])
+                trace_dens = tf.tile(trace_dens, [3, 1])
+                return tf.concat([y, trace_dens], axis=1)
+
+        model = Affine()
+        ode = NeuralODE(model, t=t_grid)
+        h1 = ode.forward(h0)
+        x1, logdet = h1[:, :8], h1[:, 8]
+
+        W_exact = tf.linalg.expm(W)
+        x1_exact = tf.matmul(x0[:, :8], W_exact)
+        self.assertAllClose(x1, x1_exact, atol=1e-5)
+        logdet_exact = - tf.log(tf.linalg.det(W_exact))
+        self.assertAllClose([logdet_exact]*3, logdet)
+
+    def test_determinant_estimation(self):
+        """Similar to previous one"""
+        tf.set_random_seed(1234)
+        t_grid = np.linspace(0, 1.0, 5)
+
+        W = tf.to_float(np.random.randn(8, 8))
+        logdet0 = tf.zeros(shape=[1])
+
+        class DeterminantEstimation(tf.keras.Model):
+            def call(self, inputs, **kwargs):
+                trace_dens = - tf.trace(W)
+                return trace_dens
+
+        ode = NeuralODE(DeterminantEstimation(), t=t_grid)
+        logdet = ode.forward(logdet0)
+
+        W_exact = tf.linalg.expm(W)
+        logdet_exact = - tf.log(tf.linalg.det(W_exact))
+        self.assertAllClose([logdet_exact], logdet)
