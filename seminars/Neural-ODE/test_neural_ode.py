@@ -36,10 +36,18 @@ class NNModule(tf.keras.Model):
         h = self.dense_1(x)
         return self.dense_2(h)
 
-    def compute_output_shape(self, input_shape):
-        shape = tf.TensorShape(input_shape).as_list()
-        shape[-1] = self.num_filters
-        return tf.TensorShape(shape)
+
+class NNModuleTimeDependent(tf.keras.Model):
+    def __init__(self):
+        super(NNModuleTimeDependent, self).__init__(name="Module")
+        self.num_filters = 3
+        self.dense_1 = keras.layers.Dense(self.num_filters, activation="tanh")
+        self.dense_2 = keras.layers.Dense(self.num_filters, activation="tanh")
+
+    def call(self, inputs, **kwargs):
+        t, x = inputs
+        h = self.dense_1(x * t)
+        return self.dense_2(h * t)
 
 
 class NNGradientModule(NNModule):
@@ -58,11 +66,6 @@ class NNGradientModule(NNModule):
         outputs = tf.concat([hx, gradients], axis=1)
         return outputs
 
-    def compute_output_shape(self, input_shape):
-        shape = tf.TensorShape(input_shape).as_list()
-        shape[-1] = 2 * self.num_filters
-        return tf.TensorShape(shape)
-
 
 class TestNeuralOde(tf.test.TestCase):
     def test_function_integration(self):
@@ -72,18 +75,19 @@ class TestNeuralOde(tf.test.TestCase):
         xN_euler = ode.forward(x0)
 
         ode = NeuralODE(
-            SineDumpingModel(), t=np.linspace(0, t_max, 100), solver=neural_ode.rk2_step
+            SineDumpingModel(), t=np.linspace(0, t_max, 100),
+            solver=neural_ode.rk2_step
         )
 
         xN_rk2 = ode.forward(x0)
 
         ode = NeuralODE(
-            SineDumpingModel(), t=np.linspace(0, t_max, 50), solver=neural_ode.rk4_step
+            SineDumpingModel(), t=np.linspace(0, t_max, 50),
+            solver=neural_ode.rk4_step
         )
 
         xN_rk4 = ode.forward(x0)
         xN_exact = [np.log(2 - np.cos(t_max))]
-
 
         self.assertAllClose(xN_euler.numpy(), xN_exact, atol=1e-4)
         self.assertAllClose(xN_rk2.numpy(), xN_exact, atol=1e-4)
@@ -97,11 +101,13 @@ class TestNeuralOde(tf.test.TestCase):
         xy0 = tf.to_float([0.0, 0.0])
         xyN_euler = ode.forward(xy0)
 
-        ode = NeuralODE(DoubleSineDumpingModel(), t=t_grid, solver=neural_ode.rk2_step)
+        ode = NeuralODE(DoubleSineDumpingModel(), t=t_grid,
+                        solver=neural_ode.rk2_step)
 
         xyN_rk2 = ode.forward(xy0)
 
-        ode = NeuralODE(DoubleSineDumpingModel(), t=t_grid, solver=neural_ode.rk4_step)
+        ode = NeuralODE(DoubleSineDumpingModel(), t=t_grid,
+                        solver=neural_ode.rk4_step)
 
         xyN_rk4 = ode.forward(xy0)
 
@@ -117,7 +123,8 @@ class TestNeuralOde(tf.test.TestCase):
         t_max = 1
         t_grid = np.linspace(0, t_max, 40)
 
-        ode = NeuralODE(SineDumpingModel(), t=t_grid, solver=neural_ode.rk4_step)
+        ode = NeuralODE(SineDumpingModel(), t=t_grid,
+                        solver=neural_ode.rk4_step)
         x0 = tf.to_float([0])
         xN = ode.forward(x0)
         with tf.GradientTape() as g:
@@ -136,6 +143,16 @@ class TestNeuralOde(tf.test.TestCase):
 
         dLdx0_exact = g.gradient(loss, x0)
         self.assertAllClose(dLdx0_exact, dLdx0)
+
+    def test_backward_none(self):
+        tf.set_random_seed(1234)
+        t_grid = np.linspace(0, 1.0, 15)
+
+        x0 = tf.random_normal(shape=[7, 3])
+
+        ode = NeuralODE(NNModuleTimeDependent(), t=t_grid)
+        x0_rec, *_ = ode.backward(ode.forward(x0))
+        self.assertAllClose(x0_rec, x0)
 
     def test_nn_forward_backward(self):
         tf.set_random_seed(1234)
@@ -311,7 +328,7 @@ class TestNeuralOde(tf.test.TestCase):
         x1_exact = tf.matmul(x0[:, :8], W_exact)
         self.assertAllClose(x1, x1_exact, atol=1e-5)
         logdet_exact = - tf.log(tf.linalg.det(W_exact))
-        self.assertAllClose([logdet_exact]*3, logdet)
+        self.assertAllClose([logdet_exact] * 3, logdet)
 
     def test_determinant_estimation(self):
         """Similar to previous one"""
