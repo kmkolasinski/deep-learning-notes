@@ -1,0 +1,211 @@
+#LyX 2.2 created this file. For more info see http://www.lyx.org/
+\lyxformat 508
+\begin_document
+\begin_header
+\save_transient_properties true
+\origin unavailable
+\textclass article
+\use_default_options true
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman "default" "default"
+\font_sans "default" "default"
+\font_typewriter "default" "default"
+\font_math "auto" "auto"
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100 100
+\font_tt_scale 100 100
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\use_hyperref false
+\papersize default
+\use_geometry false
+\use_package amsmath 1
+\use_package amssymb 1
+\use_package cancel 1
+\use_package esint 1
+\use_package mathdots 1
+\use_package mathtools 1
+\use_package mhchem 1
+\use_package stackrel 1
+\use_package stmaryrd 1
+\use_package undertilde 1
+\cite_engine basic
+\cite_engine_type default
+\biblio_style plain
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\justification true
+\use_refstyle 1
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\quotes_language english
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\mathbf{h}_{t+1}=f(\mathbf{h}_{t})
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\mathbf{h}_{t+1}=\mathbf{h}_{t}+f(\mathbf{h}_{t})
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\mathbf{h}_{t+1}-\mathbf{h}_{t}=f(\mathbf{h}_{t})\Rightarrow\frac{\mathbf{h}_{t+1}-\mathbf{h}_{t}}{\Delta t}=\frac{f(\mathbf{h}_{t})}{\Delta t}=g(\mathbf{h}_{t})
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\lim_{\Delta t\rightarrow0}\frac{\mathbf{h}_{t+1}-\mathbf{h}_{t}}{\Delta t}=\frac{d\mathbf{h}\left(t\right)}{dt}=g\left(t,\mathbf{h}\left(t\right)\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\frac{dN(t)}{dt}=-\lambda N(t)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+N(t)=N_{0}e^{-\lambda t}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{align*}
+N(t) & =N_{0}-\lambda\int_{0}^{t}dt'N(t')\\
+ & =N_{0}-\lambda N_{0}\int_{0}^{t}dt'e^{-\lambda t'}\\
+ & =N_{0}-\lambda N_{0}\left[-\frac{1}{\lambda}e^{-\lambda t}-\left(-\frac{1}{\lambda}e^{-\lambda0}\right)\right]\\
+ & =N_{0}-N_{0}+N_{0}e^{-\lambda t}=N_{0}e^{-\lambda t}
+\end{align*}
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\mathbf{h}\left(t\right)=\mathbf{h}\left(0\right)+\int_{0}^{t}dt'g\left(t',\mathbf{h}\left(t'\right)\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\mathbf{h}\left(N\Delta t\right)=\mathbf{h}\left(0\right)+\Delta t\sum_{k=0}^{N-1}g\left(k\Delta t,\mathbf{h}\left(k\Delta t\right)\right)
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\mathbf{h}_{N}=\mathbf{h}_{0}+\Delta t\sum_{k=0}^{N-1}g\left(k\Delta t,\mathbf{h}_{k}\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\mathbf{h}\left(\Delta t\right)=\mathbf{h}\left(0\right)+\Delta tg\left(0,\mathbf{h}\left(0\right)\right)
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{align*}
+\mathbf{h}_{N} & =\mathbf{h}_{0}+\Delta t\sum_{k=0}^{N-1}g\left(k\Delta t,\mathbf{h}_{k}\right)\\
+ & =\left(\mathbf{h}_{0}+\Delta t\sum_{k=0}^{N-2}g\left(k\Delta t,\mathbf{h}_{k}\right)\right)+\Delta tg\left(\left(N-1\right)\Delta t,\mathbf{h}_{N-1}\right)
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\mathbf{h}_{N}=\mathbf{h}_{N-1}+\Delta tg\left(\left(N-1\right)\Delta t,\mathbf{h}_{N-1}\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\mathbf{h}_{l+1}=\mathbf{h}_{l}+\mathrm{NNetwork}(\mathbf{h}_{l})
+\]
+
+\end_inset
+
+
+\end_layout
+
+\end_body
+\end_document

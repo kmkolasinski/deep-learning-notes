@@ -92,6 +92,7 @@ class NeuralODE:
             target=ht_new, sources=[ht] + self._model.weights,
             output_gradients=at
         )
+
         return [1.0, ht_new, *gradients]
 
     def backward(self, outputs: tf.Tensor,
@@ -138,6 +139,10 @@ class NeuralODE:
                 method=method,
                 full_output=True,
             )
+
+        if return_states:
+            return outputs, info_dict
+
         return outputs[-1, ...], info_dict
 
 
