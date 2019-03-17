@@ -59,21 +59,21 @@ class CNF(tf.keras.Model):
         self.hyper_net = HyperNet(input_dim, hidden_dim, n_ensemble)
 
     def call(self, inputs, **kwargs):
-        t, x = inputs
-        x = x[:, :self.hyper_net.input_dim]
+        t, z_p_concat = inputs
+        z = z_p_concat[:, :self.hyper_net.input_dim]
         W, B, U = self.hyper_net(t)
-        X = tf.tile(tf.expand_dims(x, 0), [self.hyper_net.n_ensemble, 1, 1])
+        Z = tf.tile(tf.expand_dims(z, 0), [self.hyper_net.n_ensemble, 1, 1])
 
         with tf.GradientTape() as g:
-            g.watch(X)
-            h = tf.tanh(tf.matmul(X, W) + B)
-            dx = tf.reduce_mean(tf.matmul(h, U), 0)
+            g.watch(Z)
+            h = tf.tanh(tf.matmul(Z, W) + B)
+            dzdt = tf.reduce_mean(tf.matmul(h, U), 0)
             reduced_h = tf.reduce_sum(h)
 
-        dhdX = g.gradient(
+        dhdZ = g.gradient(
             target=reduced_h,
-            sources=X,
+            sources=Z,
         )
-        dlogpx = -tf.matmul(dhdX, tf.transpose(U, [0, 2, 1]))
-        dlogpx = tf.reduce_mean(dlogpx, axis=0)
-        return tf.concat([dx, dlogpx], axis=1)
+        dlogpz = -tf.matmul(dhdZ, tf.transpose(U, [0, 2, 1]))
+        dlogpz = tf.reduce_mean(dlogpz, axis=0)
+        return tf.concat([dzdt, dlogpz], axis=1)

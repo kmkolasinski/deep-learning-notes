@@ -197,9 +197,194 @@ N(t) & =N_{0}-\lambda\int_{0}^{t}dt'N(t')\\
 \end_inset
 
 
+\end_layout
+
+\begin_layout Standard
 \begin_inset Formula 
 \[
-\mathbf{h}_{l+1}=\mathbf{h}_{l}+\mathrm{NNetwork}(\mathbf{h}_{l})
+\frac{d\mathbf{h}\left(t\right)}{dt}=\mathrm{NNetwork}\left(\mathbf{h}\left(t\right),t,\theta\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\begin{align*}
+\mathbf{h}_{1} & =\mathbf{h}_{0}+\mathrm{NNetwork}(\mathbf{h}_{0})\\
+ & \cdots\\
+\mathbf{h}_{k} & =\mathbf{h}_{k-1}+\mathrm{NNetwork}(\mathbf{h}_{k-1})
+\end{align*}
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\mathcal{\frac{\partial L}{\partial\theta}}=\mathrm{loss}\left(\mathbf{h}_{k},y_{\mathrm{targets}};\theta\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\begin{align*}
+\mathbf{h}_{t+1} & =f\left(\mathbf{h}_{t}\right)\\
+\mathcal{L} & =\mathcal{L}\left(\mathbf{h}_{t+1}\right)
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{\partial\mathcal{L}}{\partial\mathbf{h}_{t}}=\frac{\partial\mathcal{L}}{\partial\mathbf{h}_{t+1}}\frac{\mathcal{\partial}\mathbf{h}_{t+1}}{\partial\mathbf{h}_{t}}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\mathbf{h}\left(t+\varepsilon\right)=\mathbf{h}\left(t\right)+\int_{t}^{t+\varepsilon}f\left(\mathbf{h}\left(t'\right),t'\right)dt'\,\,\,\,\mathrm{\,\,since\,\,\,\,\,\,\,\frac{d\mathbf{h}\left(t\right)}{dt}=f\left(\mathbf{h}\left(t\right),t\right)}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\frac{\partial L}{\partial\mathbf{h}\left(t\right)}=\frac{\partial\mathcal{L}}{\partial\mathbf{h}\left(t+\varepsilon\right)}\frac{\mathcal{\partial}\mathbf{h}\left(t+\varepsilon\right)}{\partial\mathbf{h}\left(t\right)}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\mathbf{a}(t)=\frac{\partial L}{\partial\mathbf{h}\left(t\right)}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\mathbf{a}(t)=\mathbf{a}(t+\varepsilon)\frac{\mathcal{\partial}\mathbf{h}\left(t+\varepsilon\right)}{\partial\mathbf{h}\left(t\right)}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\frac{d\mathbf{a}\left(t\right)}{dt}=-\mathbf{a}\left(t\right)\frac{\partial f\left(\mathbf{h}\left(t\right),t\right)}{\partial\mathbf{h}\left(t\right)}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\frac{\partial L}{\partial\mathbf{h}\left(t_{0}\right)},\frac{\partial L}{\partial\mathbf{\theta}}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\mathbf{a}\left(t=0\right)=\mathbf{a}\left(t=t_{\mathrm{end}}\right)-\int_{t=t_{\mathrm{end}}}^{t=0}dt'\mathbf{a}\left(t'\right)\frac{\partial f\left(\mathbf{h}\left(t'\right),t'\right)}{\partial\mathbf{h}\left(t'\right)}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\frac{d\mathbf{h}\left(t\right)}{dt}=f(\mathbf{h}\left(t\right);\mathbf{W})=\mathbf{W}\mathbf{h}\left(t\right)
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\mathbf{W}=\left(\begin{array}{cc}
+-0.1 & 1\\
+-0.2 & -0.1
+\end{array}\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\mathbf{h}\left(t=25\right)=\mathrm{odeint}\left(f(\mathbf{h}\left(t\right);\mathbf{W}),\mathbf{h}\left(t=0\right),t\in(0,25)\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\mathcal{L}=\left\Vert \mathbf{h}^{\mathrm{final}}-\mathbf{h}^{\mathrm{target}}\right\Vert ^{2}=\mathrm{\sum_{k=1}^{2}\left(h_{k}^{final}-h_{k}^{\mathrm{target}}\right)^{2}}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\mathbf{a}(t=25)=\frac{\partial\mathcal{L}}{\partial\mathbf{h}^{\mathrm{final}}}=2\left(\mathbf{h}^{\mathrm{final}}-\mathbf{h}^{\mathrm{target}}\right)
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{d\mathbf{a}\left(t\right)}{dt}=-\mathbf{a}\left(t\right)\frac{\partial f\left(\mathbf{h}\left(t\right),t\right)}{\partial\mathbf{h}\left(t\right)}=-\mathbf{a}\left(t\right)\mathbf{W}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\mathcal{\mathbf{h}}^{\mathrm{initial}}:=\mathcal{\mathbf{h}}^{\mathrm{initial}}-\lambda\frac{\partial\mathcal{L}}{\partial\mathcal{\mathbf{h}}^{\mathrm{initial}}}=\mathcal{\mathbf{h}}^{\mathrm{initial}}-\lambda\mathbf{a}\left(t=0\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\frac{d\mathbf{a}_{\theta}\left(t\right)}{dt}=-\mathbf{a}\left(t\right)\frac{\partial f\left(\mathbf{h}\left(t\right),t\right)}{\partial\mathbf{\theta}}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\frac{\partial\mathcal{L}}{\partial\theta}\left(t=0\right)=\underbrace{\mathbf{a}_{\theta}\left(t=t_{\mathrm{end}}\right)}_{=0}-\int_{t=t_{\mathrm{end}}}^{t=0}dt'\mathbf{a}\left(t\right)\frac{\partial f\left(\mathbf{h}\left(t'\right),t'\right)}{\partial\mathbf{\theta}}
 \]
 
 \end_inset
