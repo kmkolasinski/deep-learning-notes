@@ -392,5 +392,46 @@ N(t) & =N_{0}-\lambda\int_{0}^{t}dt'N(t')\\
 
 \end_layout
 
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\mathbf{z}\left(t+1\right)=\mathbf{z}\left(t\right)+\mathbf{u}\tanh\left(\underbrace{\mathbf{w}^{T}\mathbf{z}\left(t\right)+b}_{\mathrm{scalar}}\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\frac{d\mathbf{z}}{dt}=\mathbf{u}\tanh\left(\mathbf{w}^{T}\mathbf{z}\left(t\right)+b\right)=f(\mathbf{z}\left(t\right),t)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\begin{cases}
+\mathbf{z}\left(t+1\right) & =f(\mathbf{z}\left(t\right),t)\\
+\log p\left(\mathbf{z}\left(t+1\right)\right) & =\log p\left(\mathbf{z}\left(t\right)\right)-\log\left|\det\frac{\partial f(\mathbf{z}\left(t\right),t)}{\partial\mathbf{z}\left(t\right)}\right|
+\end{cases}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\begin{cases}
+\frac{d\mathbf{z}}{dt} & =g(\mathbf{z}\left(t\right),t)\\
+\frac{\partial\log p\left(\mathbf{z}\left(t\right)\right)}{\partial t} & =-\mathrm{tr}\left(\frac{\partial g(\mathbf{z}\left(t\right),t)}{\partial\mathbf{z}\left(t\right)}\right)
+\end{cases}
+\]
+
+\end_inset
+
+
+\end_layout
+
 \end_body
 \end_document
