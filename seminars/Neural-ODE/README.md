@@ -34,10 +34,8 @@ Notebooks are related with the content of the slides
   demo of example implementation of Continuous Normalizing Flows (CNFs).
   Fitting of two moons dataset to unit gaussian and planar flows
   reimplementation of the selected paper result.
-* [4.Adaptive_forward_errors.ipynb](4.Adaptive_forward_errors.ipynb) -
-  demo of example implementation of Continuous Normalizing Flows (CNFs).
-  Fitting of two moons dataset to unit gaussian and planar flows
-  reimplementation of the selected paper result.
+* [4.Adaptive_forward_errors.ipynb](4.Adaptive_forward_errors.ipynb) - RK4 errors vs adaptive solver
+  
 
 
 ## Requirements
