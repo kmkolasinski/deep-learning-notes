@@ -8,8 +8,7 @@ paper.
   Second image shows training loss, initial samples from two moons and target
   unit gaussian evolution during training.
 
-<img src="img/density.gif" width="256" height="256">
-<img src="img/training.gif" width="800" height="256">
+<img src="img/density.gif" width="200" height="200"><img src="img/training.gif" width="600" height="200">
 
 ## Slides:
 
