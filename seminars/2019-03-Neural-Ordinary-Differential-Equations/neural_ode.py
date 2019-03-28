@@ -12,7 +12,7 @@ def zip_map(zipped, update_op):
 
 
 def euler_update(h_list, dh_list, dt):
-    return zip_map(zip(h_list, dh_list), lambda h, dh: h + dt * dh)
+    return zip_map(zip(h_list, dh_list), lambda h, dh: h + tf.cast(dt, h.dtype) * dh)
 
 
 def euler_step(func, dt, state):
@@ -23,7 +23,7 @@ def rk2_step(func, dt, state):
     k1 = func(state)
     k2 = func(euler_update(state, k1, dt))
     return zip_map(zip(state, k1, k2),
-                   lambda h, dk1, dk2: h + dt * (dk1 + dk2) / 2)
+                   lambda h, dk1, dk2: h + tf.cast(dt, h.dtype) * (dk1 + dk2) / 2)
 
 
 def rk4_step(func, dt, state):
@@ -34,7 +34,7 @@ def rk4_step(func, dt, state):
 
     return zip_map(
         zip(state, k1, k2, k3, k4),
-        lambda h, dk1, dk2, dk3, dk4: h + dt * (
+        lambda h, dk1, dk2, dk3, dk4: h + tf.cast(dt, h.dtype) * (
                 dk1 + 2 * dk2 + 2 * dk3 + dk4) / 6,
     )
 
