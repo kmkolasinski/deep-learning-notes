@@ -1,0 +1,437 @@
+#LyX 2.2 created this file. For more info see http://www.lyx.org/
+\lyxformat 508
+\begin_document
+\begin_header
+\save_transient_properties true
+\origin unavailable
+\textclass article
+\use_default_options true
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman "default" "default"
+\font_sans "default" "default"
+\font_typewriter "default" "default"
+\font_math "auto" "auto"
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100 100
+\font_tt_scale 100 100
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\use_hyperref false
+\papersize default
+\use_geometry false
+\use_package amsmath 1
+\use_package amssymb 1
+\use_package cancel 1
+\use_package esint 1
+\use_package mathdots 1
+\use_package mathtools 1
+\use_package mhchem 1
+\use_package stackrel 1
+\use_package stmaryrd 1
+\use_package undertilde 1
+\cite_engine basic
+\cite_engine_type default
+\biblio_style plain
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\justification true
+\use_refstyle 1
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\quotes_language english
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\mathbf{h}_{t+1}=f(\mathbf{h}_{t})
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\mathbf{h}_{t+1}=\mathbf{h}_{t}+f(\mathbf{h}_{t})
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\mathbf{h}_{t+1}-\mathbf{h}_{t}=f(\mathbf{h}_{t})\Rightarrow\frac{\mathbf{h}_{t+1}-\mathbf{h}_{t}}{\Delta t}=\frac{f(\mathbf{h}_{t})}{\Delta t}=g(\mathbf{h}_{t})
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\lim_{\Delta t\rightarrow0}\frac{\mathbf{h}_{t+1}-\mathbf{h}_{t}}{\Delta t}=\frac{d\mathbf{h}\left(t\right)}{dt}=g\left(t,\mathbf{h}\left(t\right)\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\frac{dN(t)}{dt}=-\lambda N(t)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+N(t)=N_{0}e^{-\lambda t}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{align*}
+N(t) & =N_{0}-\lambda\int_{0}^{t}dt'N(t')\\
+ & =N_{0}-\lambda N_{0}\int_{0}^{t}dt'e^{-\lambda t'}\\
+ & =N_{0}-\lambda N_{0}\left[-\frac{1}{\lambda}e^{-\lambda t}-\left(-\frac{1}{\lambda}e^{-\lambda0}\right)\right]\\
+ & =N_{0}-N_{0}+N_{0}e^{-\lambda t}=N_{0}e^{-\lambda t}
+\end{align*}
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\mathbf{h}\left(t\right)=\mathbf{h}\left(0\right)+\int_{0}^{t}dt'g\left(t',\mathbf{h}\left(t'\right)\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\mathbf{h}\left(N\Delta t\right)=\mathbf{h}\left(0\right)+\Delta t\sum_{k=0}^{N-1}g\left(k\Delta t,\mathbf{h}\left(k\Delta t\right)\right)
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\mathbf{h}_{N}=\mathbf{h}_{0}+\Delta t\sum_{k=0}^{N-1}g\left(k\Delta t,\mathbf{h}_{k}\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\mathbf{h}\left(\Delta t\right)=\mathbf{h}\left(0\right)+\Delta tg\left(0,\mathbf{h}\left(0\right)\right)
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{align*}
+\mathbf{h}_{N} & =\mathbf{h}_{0}+\Delta t\sum_{k=0}^{N-1}g\left(k\Delta t,\mathbf{h}_{k}\right)\\
+ & =\left(\mathbf{h}_{0}+\Delta t\sum_{k=0}^{N-2}g\left(k\Delta t,\mathbf{h}_{k}\right)\right)+\Delta tg\left(\left(N-1\right)\Delta t,\mathbf{h}_{N-1}\right)
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\mathbf{h}_{N}=\mathbf{h}_{N-1}+\Delta tg\left(\left(N-1\right)\Delta t,\mathbf{h}_{N-1}\right)
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{d\mathbf{h}\left(t\right)}{dt}=\mathrm{NNetwork}\left(\mathbf{h}\left(t\right),t,\theta\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\begin{align*}
+\mathbf{h}_{1} & =\mathbf{h}_{0}+\mathrm{NNetwork}(\mathbf{h}_{0})\\
+ & \cdots\\
+\mathbf{h}_{k} & =\mathbf{h}_{k-1}+\mathrm{NNetwork}(\mathbf{h}_{k-1})
+\end{align*}
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\mathcal{\frac{\partial L}{\partial\theta}}=\mathrm{loss}\left(\mathbf{h}_{k},y_{\mathrm{targets}};\theta\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\begin{align*}
+\mathbf{h}_{t+1} & =f\left(\mathbf{h}_{t}\right)\\
+\mathcal{L} & =\mathcal{L}\left(\mathbf{h}_{t+1}\right)
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{\partial\mathcal{L}}{\partial\mathbf{h}_{t}}=\frac{\partial\mathcal{L}}{\partial\mathbf{h}_{t+1}}\frac{\mathcal{\partial}\mathbf{h}_{t+1}}{\partial\mathbf{h}_{t}}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\mathbf{h}\left(t+\varepsilon\right)=\mathbf{h}\left(t\right)+\int_{t}^{t+\varepsilon}f\left(\mathbf{h}\left(t'\right),t'\right)dt'\,\,\,\,\mathrm{\,\,since\,\,\,\,\,\,\,\frac{d\mathbf{h}\left(t\right)}{dt}=f\left(\mathbf{h}\left(t\right),t\right)}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\frac{\partial L}{\partial\mathbf{h}\left(t\right)}=\frac{\partial\mathcal{L}}{\partial\mathbf{h}\left(t+\varepsilon\right)}\frac{\mathcal{\partial}\mathbf{h}\left(t+\varepsilon\right)}{\partial\mathbf{h}\left(t\right)}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\mathbf{a}(t)=\frac{\partial L}{\partial\mathbf{h}\left(t\right)}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\mathbf{a}(t)=\mathbf{a}(t+\varepsilon)\frac{\mathcal{\partial}\mathbf{h}\left(t+\varepsilon\right)}{\partial\mathbf{h}\left(t\right)}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\frac{d\mathbf{a}\left(t\right)}{dt}=-\mathbf{a}\left(t\right)\frac{\partial f\left(\mathbf{h}\left(t\right),t\right)}{\partial\mathbf{h}\left(t\right)}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\frac{\partial L}{\partial\mathbf{h}\left(t_{0}\right)},\frac{\partial L}{\partial\mathbf{\theta}}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\mathbf{a}\left(t=0\right)=\mathbf{a}\left(t=t_{\mathrm{end}}\right)-\int_{t=t_{\mathrm{end}}}^{t=0}dt'\mathbf{a}\left(t'\right)\frac{\partial f\left(\mathbf{h}\left(t'\right),t'\right)}{\partial\mathbf{h}\left(t'\right)}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\frac{d\mathbf{h}\left(t\right)}{dt}=f(\mathbf{h}\left(t\right);\mathbf{W})=\mathbf{W}\mathbf{h}\left(t\right)
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\mathbf{W}=\left(\begin{array}{cc}
+-0.1 & 1\\
+-0.2 & -0.1
+\end{array}\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\mathbf{h}\left(t=25\right)=\mathrm{odeint}\left(f(\mathbf{h}\left(t\right);\mathbf{W}),\mathbf{h}\left(t=0\right),t\in(0,25)\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\mathcal{L}=\left\Vert \mathbf{h}^{\mathrm{final}}-\mathbf{h}^{\mathrm{target}}\right\Vert ^{2}=\mathrm{\sum_{k=1}^{2}\left(h_{k}^{final}-h_{k}^{\mathrm{target}}\right)^{2}}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\mathbf{a}(t=25)=\frac{\partial\mathcal{L}}{\partial\mathbf{h}^{\mathrm{final}}}=2\left(\mathbf{h}^{\mathrm{final}}-\mathbf{h}^{\mathrm{target}}\right)
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{d\mathbf{a}\left(t\right)}{dt}=-\mathbf{a}\left(t\right)\frac{\partial f\left(\mathbf{h}\left(t\right),t\right)}{\partial\mathbf{h}\left(t\right)}=-\mathbf{a}\left(t\right)\mathbf{W}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\mathcal{\mathbf{h}}^{\mathrm{initial}}:=\mathcal{\mathbf{h}}^{\mathrm{initial}}-\lambda\frac{\partial\mathcal{L}}{\partial\mathcal{\mathbf{h}}^{\mathrm{initial}}}=\mathcal{\mathbf{h}}^{\mathrm{initial}}-\lambda\mathbf{a}\left(t=0\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\frac{d\mathbf{a}_{\theta}\left(t\right)}{dt}=-\mathbf{a}\left(t\right)\frac{\partial f\left(\mathbf{h}\left(t\right),t\right)}{\partial\mathbf{\theta}}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\frac{\partial\mathcal{L}}{\partial\theta}\left(t=0\right)=\underbrace{\mathbf{a}_{\theta}\left(t=t_{\mathrm{end}}\right)}_{=0}-\int_{t=t_{\mathrm{end}}}^{t=0}dt'\mathbf{a}\left(t\right)\frac{\partial f\left(\mathbf{h}\left(t'\right),t'\right)}{\partial\mathbf{\theta}}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\mathbf{z}\left(t+1\right)=\mathbf{z}\left(t\right)+\mathbf{u}\tanh\left(\underbrace{\mathbf{w}^{T}\mathbf{z}\left(t\right)+b}_{\mathrm{scalar}}\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\frac{d\mathbf{z}}{dt}=\mathbf{u}\tanh\left(\mathbf{w}^{T}\mathbf{z}\left(t\right)+b\right)=f(\mathbf{z}\left(t\right),t)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\begin{cases}
+\mathbf{z}\left(t+1\right) & =f(\mathbf{z}\left(t\right),t)\\
+\log p\left(\mathbf{z}\left(t+1\right)\right) & =\log p\left(\mathbf{z}\left(t\right)\right)-\log\left|\det\frac{\partial f(\mathbf{z}\left(t\right),t)}{\partial\mathbf{z}\left(t\right)}\right|
+\end{cases}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\begin{cases}
+\frac{d\mathbf{z}}{dt} & =g(\mathbf{z}\left(t\right),t)\\
+\frac{\partial\log p\left(\mathbf{z}\left(t\right)\right)}{\partial t} & =-\mathrm{tr}\left(\frac{\partial g(\mathbf{z}\left(t\right),t)}{\partial\mathbf{z}\left(t\right)}\right)
+\end{cases}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\end_body
+\end_document
