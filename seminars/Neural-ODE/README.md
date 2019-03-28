@@ -12,8 +12,11 @@ paper.
 
 ## Slides:
 
-Published google slides presentation and other materials:
+Published Google slides presentation and other materials:
 
+* Interactive [Google slides](https://docs.google.com/presentation/d/e/2PACX-1vQSh--YqRiXKjkydmoawYOk5e09eCCJvwzrmCLltMIdxDX7r20XEdZUmY6Y-wb1435EtdKYJMR5kKaT/pub?start=false&loop=false&delayms=3000)
+* Power point [version pptx](slides/slides.pptx)
+* PDF [version](slides/slides.pdf)
 
 ## Notebooks:
 
@@ -37,10 +40,9 @@ Notebooks are related with the content of the slides
 * [4.Adaptive_forward_errors.ipynb](4.Adaptive_forward_errors.ipynb) - RK4 errors vs adaptive solver
   
 
-
 ## Requirements
 
-* tensorflow>=1.12
+* tested on tensorflow==1.12
 
 ## Solvers
 
