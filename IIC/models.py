@@ -35,13 +35,13 @@ def create_resnet_se_backbone(
 
 
 def create_iic_model(
-    input_shape: Tuple[int, int, int],
     base_model: keras.Model,
     main_head_num_classes: int,
     aux_head_num_classes: int = None,
     num_main_heads: int = 1,
     num_aux_heads: int = 0,
 ):
+    input_shape = base_model.input_shape[1:]
     image_input = keras.Input(shape=input_shape, name="image")
     tf_image_input = keras.Input(shape=input_shape, name="tf_image")
     inputs = {"image": image_input, "tf_image": tf_image_input}

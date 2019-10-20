@@ -32,23 +32,19 @@ def plot_image_pairs(
 def plot_probabilities_grid(
     iic_model: tf.keras.Model, dataset_iterator: tf.data.Dataset, num_steps: int = 10
 ):
-    target_labels = []
-    predicted_labels = []
-    predicted_tf_labels = []
+    prediction_dict = defaultdict(list)
+    
     for i in range(num_steps):
         features, labels = next(dataset_iterator)
         p_out_preds = iic_model.predict(features, steps=None)
-        predicted_labels += p_out_preds.argmax(-1).tolist()
-#         predicted_tf_labels += p_tf_out_pred.argmax(-1).tolist()
-        target_labels += labels["label"].numpy().tolist()
+        if type(p_out_preds) == np.ndarray:
+            p_out_preds = [p_out_preds]
+        
+        for k, p_out in enumerate(p_out_preds):
+            prediction_dict[f"y_pred_{k}"] += p_out.argmax(-1).tolist()
+        prediction_dict[f"y_true"] += labels["label"].numpy().tolist()
 
-    df = pd.DataFrame(
-        {
-            "y_true": target_labels,
-            "y_pred": predicted_labels,
-#             "y_tf_pred": predicted_tf_labels,
-        }
-    )
+    df = pd.DataFrame(prediction_dict)
     g = sns.PairGrid(df)
     g.map_diag(sns.kdeplot)
     return g.map_offdiag(sns.kdeplot, n_levels=6)
@@ -108,9 +104,10 @@ class PredictionsHistory(keras.callbacks.Callback):
 
     def on_epoch_end(self, epoch, logs = None):
         error_string = " "
+        count = len(self.y_true)
         for k, y_pred in self.heads_y_pred.items(): 
             error = unsupervised_labels(self.y_true, y_pred, 10, 10)
-            error_string += f" head[{k}]: {error:.4f}"
+            error_string += f" head[{k}]: {error:.4f} [{count}]"
         print(error_string)
         
         self.heads_y_pred = defaultdict(list)

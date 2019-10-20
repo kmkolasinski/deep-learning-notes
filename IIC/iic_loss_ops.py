@@ -1,4 +1,5 @@
 import tensorflow as tf
+import sys
 
 K = tf.keras.backend
 
@@ -7,7 +8,7 @@ def iic_loss(
     p_out: tf.Tensor,
     p_tf_out: tf.Tensor,
     lamb: float = 1.0,
-    eps: float = 1e-6,
+    eps: float = sys.float_info.epsilon,
     name: str = None,
 ) -> tf.Tensor:
     """
