@@ -5,6 +5,7 @@ import seaborn as sns
 import pandas as pd
 import numpy as np
 from scipy.optimize import linear_sum_assignment
+from collections import defaultdict
 
 keras = tf.keras
 
@@ -36,16 +37,16 @@ def plot_probabilities_grid(
     predicted_tf_labels = []
     for i in range(num_steps):
         features, labels = next(dataset_iterator)
-        p_out_pred, p_tf_out_pred = iic_model.predict(features, steps=None)
-        predicted_labels += p_out_pred.argmax(-1).tolist()
-        predicted_tf_labels += p_tf_out_pred.argmax(-1).tolist()
+        p_out_preds = iic_model.predict(features, steps=None)
+        predicted_labels += p_out_preds.argmax(-1).tolist()
+#         predicted_tf_labels += p_tf_out_pred.argmax(-1).tolist()
         target_labels += labels["label"].numpy().tolist()
 
     df = pd.DataFrame(
         {
             "y_true": target_labels,
             "y_pred": predicted_labels,
-            "y_tf_pred": predicted_tf_labels,
+#             "y_tf_pred": predicted_tf_labels,
         }
     )
     g = sns.PairGrid(df)
@@ -80,11 +81,11 @@ def unsupervised_labels(y, y_hat, num_classes, num_clusters):
 
 class PredictionsHistory(keras.callbacks.Callback):
 
-    def __init__(self, validation_data=(), interval: int=10):
+    def __init__(self, validation_data=(), interval: int=20):
         super().__init__()
         self.interval = interval
         self.data = validation_data
-        self.y_pred = []
+        self.heads_y_pred = defaultdict(list)
         self.y_true = []
 
     def on_train_begin(self, logs = None):
@@ -95,13 +96,22 @@ class PredictionsHistory(keras.callbacks.Callback):
         if batch % self.interval == 0:
             features, labels = next(self.data)
             y_true = labels['label'].numpy()
-            p_pred, p_tf_pred = self.model.predict(features)
-            y_pred = p_pred.argmax(-1)
-            self.y_pred += y_pred.tolist()
+            heads_p_pred = self.model.predict(features)
+            if type(heads_p_pred) == np.ndarray:
+                heads_p_pred = [heads_p_pred]
+            
+            for k, p_pred in enumerate(heads_p_pred):
+                y_pred = p_pred.argmax(-1)
+                self.heads_y_pred[k] += y_pred.tolist()
+            
             self.y_true += y_true.tolist()
 
     def on_epoch_end(self, epoch, logs = None):
-        error = unsupervised_labels(self.y_true, self.y_pred, 10, 10)
-        print("error:", error)
-        self.y_pred = []
+        error_string = " "
+        for k, y_pred in self.heads_y_pred.items(): 
+            error = unsupervised_labels(self.y_true, y_pred, 10, 10)
+            error_string += f" head[{k}]: {error:.4f}"
+        print(error_string)
+        
+        self.heads_y_pred = defaultdict(list)
         self.y_true = []

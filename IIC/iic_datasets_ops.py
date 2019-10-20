@@ -14,14 +14,16 @@ def default_image_augmentation(image: tf.Tensor) -> tf.Tensor:
 
     # random transformations
     image = tf.contrib.image.rotate(
-        image, tf.random_uniform(shape=[], minval=-math.pi / 4, maxval=math.pi / 4)
+        image, tf.random_uniform(shape=[], minval=-math.pi / 7, maxval=math.pi / 7)
     )
-    alpha = tf.random_uniform(shape=[], minval=-0.5, maxval=0.5)
-    transform = [1, tf.sin(alpha), 0, 0, tf.cos(alpha), 0, 0, 0]
-    image = tf.contrib.image.transform(image, transform, interpolation="NEAREST")
-    image = tf.contrib.image.translate(
-        image, tf.random_uniform(shape=[2], minval=-height / 8, maxval=height / 8)
-    )
+    
+#     alpha = tf.random_uniform(shape=[], minval=-0.5, maxval=0.5)
+#     transform = [1, tf.sin(alpha), 0, 0, tf.cos(alpha), 0, 0, 0]
+#     image = tf.contrib.image.transform(image, transform, interpolation="NEAREST")
+    
+#     image = tf.contrib.image.translate(
+#         image, tf.random_uniform(shape=[2], minval=-height / 8, maxval=height / 8)
+#     )
 
     # random cropping
     min_height = int(height * 0.8)
@@ -44,8 +46,8 @@ def default_image_augmentation(image: tf.Tensor) -> tf.Tensor:
         image = tf.image.random_contrast(image, 0.7, 1.3)
 
     # add random noise
-    noise = tf.random_uniform(tf.shape(image), minval=-0.05, maxval=0.05)
-    image = image + noise
+#     noise = tf.random_uniform(tf.shape(image), minval=-0.05, maxval=0.05)
+#     image = image + noise
 
     return image
 
@@ -53,11 +55,15 @@ def default_image_augmentation(image: tf.Tensor) -> tf.Tensor:
 def prepare_image_pairs(aug_fn, num_repeats: int = 2):
     def create_image_pair(features, labels):
         image, label = features["image"], labels["label"]
-        images, labels = [image] * num_repeats, [label] * num_repeats
+        images, labels = [], [label] * num_repeats
         tf_images = []
-        for _ in range(num_repeats):
-            tf_images.append(aug_fn(image))
-
+        ims = [24, 24, 1]
+        image = tf.expand_dims(image, 0)
+        for _ in range(num_repeats):            
+            images.append(mnist_x(image, (24, 24, 1), True))
+            tf_images.append(mnist_gx(image, (24, 24, 1), True))            
+#             tf_images.append(aug_fn(image))
+        print(tf.stack(images))
         return (
             {"image": tf.stack(images), "tf_image": tf.stack(tf_images)},
             {"label": tf.stack(labels)},
@@ -100,3 +106,81 @@ def prepare_training_dataset(
         .map(fix_batch_dimension)
         .prefetch(batch_prefetch_size)
     )
+
+
+import numpy as np
+import tensorflow as tf
+import tensorflow_datasets as tfds
+
+
+def mnist_x(x_orig, mdl_input_dims, is_training):
+
+    # get common shapes
+    height_width = mdl_input_dims[:-1]
+    n_chans = mdl_input_dims[-1]
+
+    # training transformations
+    if is_training:
+        x1 = tf.image.central_crop(x_orig, np.mean(20 / np.array(x_orig.shape.as_list()[1:-1])))        
+        x2 = tf.image.random_crop(x_orig, tf.concat((tf.shape(x_orig)[:1], [20, 20], [n_chans]), axis=0))
+        x = tf.stack([x1, x2])
+        
+        x = tf.transpose(x, [1, 0, 2, 3, 4])
+        i = tf.squeeze(tf.random.categorical([[1., 1.]], tf.shape(x)[0]))
+        x = x[0, i, ...]
+        x = tf.image.resize(x, height_width)
+
+    # testing transformations
+    else:
+        x = tf.image.central_crop(x_orig, np.mean(20 / np.array(x_orig.shape.as_list()[1:-1])))
+        x = tf.image.resize(x, height_width)
+
+    return x
+
+
+def mnist_gx(x_orig, mdl_input_dims, is_training):
+    sample_repeats = 1
+    # if not training, return a constant value--it will unused but needs to be same shape to avoid TensorFlow errors
+    if not is_training:
+        return tf.zeros([0] + mdl_input_dims)
+
+    # repeat samples accordingly
+    x_orig = tf.tile(x_orig, [sample_repeats] + [1] * len(x_orig.shape.as_list()[1:]))
+
+    # get common shapes
+    height_width = mdl_input_dims[:-1]
+    n_chans = mdl_input_dims[-1]
+
+    # random rotation
+    rad = 2 * np.pi * 25 / 360
+    x_rot = tf.contrib.image.rotate(x_orig, tf.random.uniform(shape=tf.shape(x_orig)[:1], minval=-rad, maxval=rad))
+    gx = tf.stack([x_orig, x_rot])
+    gx = tf.transpose(gx, [1, 0, 2, 3, 4])
+    i = tf.squeeze(tf.random.categorical([[1., 1.]], tf.shape(gx)[0]))
+    gx = gx[:1, i, ...]
+#     gx = tf.map_fn(lambda y: y[0][y[1]], (gx, i), dtype=tf.float32)
+
+    # random crops
+    x1 = tf.image.random_crop(gx, tf.concat((tf.shape(x_orig)[:1], [16, 16], [n_chans]), axis=0))
+    x2 = tf.image.random_crop(gx, tf.concat((tf.shape(x_orig)[:1], [20, 20], [n_chans]), axis=0))
+    x3 = tf.image.random_crop(gx, tf.concat((tf.shape(x_orig)[:1], [24, 24], [n_chans]), axis=0))
+    gx = tf.stack([tf.image.resize(x1, height_width),
+                   tf.image.resize(x2, height_width),
+                   tf.image.resize(x3, height_width)])
+    gx = tf.transpose(gx, [1, 0, 2, 3, 4])
+    i = tf.squeeze(tf.random.categorical([[1., 1., 1.]], tf.shape(gx)[0]))
+    gx = gx[:1, i, ...]
+#     gx = tf.map_fn(lambda y: y[0][y[1]], (gx, i), dtype=tf.float32)
+
+    # apply random adjustments
+    def rand_adjust(img):
+        img = tf.image.random_brightness(img, 0.4)
+        img = tf.image.random_contrast(img, 0.6, 1.4)
+        if img.shape.as_list()[-1] == 3:
+            img = tf.image.random_saturation(img, 0.6, 1.4)
+            img = tf.image.random_hue(img, 0.125)
+        return img
+
+    gx = tf.map_fn(lambda y: rand_adjust(y), gx, dtype=tf.float32)
+
+    return gx[0]

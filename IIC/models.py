@@ -18,11 +18,11 @@ keras_kwargs = dict(
 
 
 def create_resnet_se_backbone(
-    input_shape: Tuple[int, int, int], units_per_block: Tuple[int, ...] = (2, 2)
+    input_shape: Tuple[int, int, int], units_per_block: Tuple[int, ...] = (1, 1), attention=ChannelSE, name="CustomResnet"
 ):
 
     params = ModelParams(
-        "CustomResnetSE", units_per_block, residual_conv_block, ChannelSE
+       name, units_per_block, residual_conv_block, attention
     )
     base_model = ResNet(
         model_params=params,
