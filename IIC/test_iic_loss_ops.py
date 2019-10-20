@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-import iic_loss as iic_loss
+import iic_loss_ops as iic_loss
 
 tf.compat.v1.enable_eager_execution()
 K = tf.keras.backend

@@ -8,5 +8,5 @@ Other implementations:
 
 Requirements:
 ```bash
-pip install image-classifiers
+pip install image-classifiers seaborn pandas
 ```

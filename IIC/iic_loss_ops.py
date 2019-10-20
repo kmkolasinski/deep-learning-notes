@@ -4,7 +4,11 @@ K = tf.keras.backend
 
 
 def iic_loss(
-    p_out: tf.Tensor, p_tf_out: tf.Tensor, lamb: float = 1.0, eps: float = 1e-6
+    p_out: tf.Tensor,
+    p_tf_out: tf.Tensor,
+    lamb: float = 1.0,
+    eps: float = 1e-6,
+    name: str = None,
 ) -> tf.Tensor:
     """
 
@@ -35,8 +39,12 @@ def iic_loss(
         tf.math.log(p_i_j) - lamb * tf.math.log(p_j) - lamb * tf.math.log(p_i)
     )
     loss = tf.reduce_sum(loss)
+    if name is None:
+        name = "iic_loss"
+    else:
+        name = f"{name}/iic_loss"
 
-    return loss
+    return tf.identity(loss, name=name)
 
 
 def compute_joint(p_out: tf.Tensor, p_tf_out: tf.Tensor) -> tf.Tensor:
