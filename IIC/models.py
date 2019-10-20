@@ -33,19 +33,18 @@ def create_resnet_se_backbone(
 
 
 def create_head(hidden: tf.Tensor, head_size: int, name: str) -> tf.Tensor:
-    head = keras.layers.Dense(head_size, activation="softmax")
+    head = keras.layers.Dense(head_size, activation="softmax", name=f"{name}/dense")
     p_out = keras.layers.Lambda(lambda x: x, name=f"{name}/p_out")(head(hidden))
     return p_out
 
 
 def create_iic_model(
-    input_name: str,
     base_model: keras.Model,
     main_heads_num_classes: List[int],
     aux_heads_num_classes: Optional[List[int]] = None,
 ):
     input_shape = base_model.input_shape[1:]
-    image_input = keras.Input(shape=input_shape, name=input_name)
+    image_input = keras.Input(shape=input_shape, name="image")
 
     hidden = keras.layers.GlobalAveragePooling2D()(base_model(image_input))
 
@@ -54,13 +53,13 @@ def create_iic_model(
 
     main_head_outputs = []
     for i, nc in enumerate(main_heads_num_classes):
-        head_name = f"{input_name}/main_head_{i}"
+        head_name = f"main_head_{i}"
         main_head_outputs.append(create_head(hidden, nc, head_name))
 
     aux_head_outputs = []
     for i, nc in enumerate(aux_heads_num_classes):
-        head_name = f"{input_name}/aux_head_{i}"
-        main_head_outputs.append(create_head(hidden, nc, head_name))
+        head_name = f"aux_head_{i}"
+        aux_head_outputs.append(create_head(hidden, nc, head_name))
 
     return keras.Model(
         image_input, {"main_heads": main_head_outputs, "aux_heads": aux_head_outputs}

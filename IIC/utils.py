@@ -23,9 +23,10 @@ def plot_image_pairs(
     for i in range(num_examples):
         plt.subplot(121)
         plt.title(labels["label"].numpy()[i])
-        plt_imshow(features["image"][i, ...])
-        plt.subplot(122)
-        plt_imshow(features["tf_image"][i, ...])
+        plt_imshow(features["image"][i, ...])        
+        if "tf_image" in features:
+            plt.subplot(122)
+            plt_imshow(features["tf_image"][i, ...])
         plt.show()
 
 
