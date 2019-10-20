@@ -1,10 +1,7 @@
-from typing import Tuple
+from typing import Tuple, List, Optional
 
-from classification_models.models.resnet import *
-from classification_models.models._common_blocks import ChannelSE
 import tensorflow as tf
-
-import iic_loss_ops
+from classification_models.models.resnet import *
 
 keras = tf.keras
 K = tf.keras.backend
@@ -18,12 +15,13 @@ keras_kwargs = dict(
 
 
 def create_resnet_se_backbone(
-    input_shape: Tuple[int, int, int], units_per_block: Tuple[int, ...] = (1, 1), attention=ChannelSE, name="CustomResnet"
+    input_shape: Tuple[int, int, int],
+    units_per_block: Tuple[int, ...] = (1, 1),
+    attention=ChannelSE,
+    name="CustomResnet",
 ):
 
-    params = ModelParams(
-       name, units_per_block, residual_conv_block, attention
-    )
+    params = ModelParams(name, units_per_block, residual_conv_block, attention)
     base_model = ResNet(
         model_params=params,
         input_shape=input_shape,
@@ -34,43 +32,36 @@ def create_resnet_se_backbone(
     return base_model
 
 
+def create_head(hidden: tf.Tensor, head_size: int, name: str) -> tf.Tensor:
+    head = keras.layers.Dense(head_size, activation="softmax")
+    p_out = keras.layers.Lambda(lambda x: x, name=f"{name}/p_out")(head(hidden))
+    return p_out
+
+
 def create_iic_model(
+    input_name: str,
     base_model: keras.Model,
-    main_head_num_classes: int,
-    aux_head_num_classes: int = None,
-    num_main_heads: int = 1,
-    num_aux_heads: int = 0,
+    main_heads_num_classes: List[int],
+    aux_heads_num_classes: Optional[List[int]] = None,
 ):
     input_shape = base_model.input_shape[1:]
-    image_input = keras.Input(shape=input_shape, name="image")
-    tf_image_input = keras.Input(shape=input_shape, name="tf_image")
-    inputs = {"image": image_input, "tf_image": tf_image_input}
+    image_input = keras.Input(shape=input_shape, name=input_name)
 
-    def project(head, h, name):
-        h = keras.layers.GlobalAveragePooling2D()(base_model(h))
-        return keras.layers.Lambda(lambda x: x, name=name)(head(h))
+    hidden = keras.layers.GlobalAveragePooling2D()(base_model(image_input))
+
+    if aux_heads_num_classes is None:
+        aux_heads_num_classes = []
 
     main_head_outputs = []
-    for i in range(num_main_heads):
-        head_name = f"main_head_{i}"
-        head_layer = keras.layers.Dense(main_head_num_classes, activation="softmax")
-
-        p_out = project(head_layer, image_input, f"{head_name}/p_out")
-        p_tf_out = project(head_layer, tf_image_input, f"{head_name}/p_tf_out")
-        iic_loss = iic_loss_ops.iic_loss(p_out=p_out, p_tf_out=p_tf_out, name=head_name)
-
-        main_head_outputs.append(dict(outputs=[p_out, p_tf_out], loss=iic_loss))
+    for i, nc in enumerate(main_heads_num_classes):
+        head_name = f"{input_name}/main_head_{i}"
+        main_head_outputs.append(create_head(hidden, nc, head_name))
 
     aux_head_outputs = []
-    for i in range(num_aux_heads):
-        head_name = f"aux_head_{i}"
-        assert aux_head_num_classes is not None and aux_head_num_classes > 0
-        head_layer = keras.layers.Dense(aux_head_num_classes, activation="softmax")
+    for i, nc in enumerate(aux_heads_num_classes):
+        head_name = f"{input_name}/aux_head_{i}"
+        main_head_outputs.append(create_head(hidden, nc, head_name))
 
-        p_out = project(head_layer, image_input, f"{head_name}/p_out")
-        p_tf_out = project(head_layer, tf_image_input, f"{head_name}/p_tf_out")
-        iic_loss = iic_loss_ops.iic_loss(p_out=p_out, p_tf_out=p_tf_out, name=head_name)
-
-        aux_head_outputs.append(dict(outputs=[p_out, p_tf_out], loss=iic_loss))
-
-    return inputs, main_head_outputs, aux_head_outputs
+    return keras.Model(
+        image_input, {"main_heads": main_head_outputs, "aux_heads": aux_head_outputs}
+    )

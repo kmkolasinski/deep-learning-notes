@@ -33,13 +33,13 @@ def plot_probabilities_grid(
     iic_model: tf.keras.Model, dataset_iterator: tf.data.Dataset, num_steps: int = 10
 ):
     prediction_dict = defaultdict(list)
-    
+
     for i in range(num_steps):
         features, labels = next(dataset_iterator)
         p_out_preds = iic_model.predict(features, steps=None)
         if type(p_out_preds) == np.ndarray:
             p_out_preds = [p_out_preds]
-        
+
         for k, p_out in enumerate(p_out_preds):
             prediction_dict[f"y_pred_{k}"] += p_out.argmax(-1).tolist()
         prediction_dict[f"y_true"] += labels["label"].numpy().tolist()
@@ -76,39 +76,38 @@ def unsupervised_labels(y, y_hat, num_classes, num_clusters):
 
 
 class PredictionsHistory(keras.callbacks.Callback):
-
-    def __init__(self, validation_data=(), interval: int=20):
+    def __init__(self, validation_data=(), interval: int = 20):
         super().__init__()
         self.interval = interval
         self.data = validation_data
         self.heads_y_pred = defaultdict(list)
         self.y_true = []
 
-    def on_train_begin(self, logs = None):
+    def on_train_begin(self, logs=None):
         self.y_pred = []
         self.y_true = []
 
-    def on_batch_end(self, batch, logs = None):
+    def on_batch_end(self, batch, logs=None):
         if batch % self.interval == 0:
             features, labels = next(self.data)
-            y_true = labels['label'].numpy()
+            y_true = labels["label"].numpy()
             heads_p_pred = self.model.predict(features)
             if type(heads_p_pred) == np.ndarray:
                 heads_p_pred = [heads_p_pred]
-            
+
             for k, p_pred in enumerate(heads_p_pred):
                 y_pred = p_pred.argmax(-1)
                 self.heads_y_pred[k] += y_pred.tolist()
-            
+
             self.y_true += y_true.tolist()
 
-    def on_epoch_end(self, epoch, logs = None):
+    def on_epoch_end(self, epoch, logs=None):
         error_string = " "
         count = len(self.y_true)
-        for k, y_pred in self.heads_y_pred.items(): 
+        for k, y_pred in self.heads_y_pred.items():
             error = unsupervised_labels(self.y_true, y_pred, 10, 10)
             error_string += f" head[{k}]: {error:.4f} [{count}]"
         print(error_string)
-        
+
         self.heads_y_pred = defaultdict(list)
         self.y_true = []

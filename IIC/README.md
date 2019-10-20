@@ -8,5 +8,6 @@ Other implementations:
 
 Requirements:
 ```bash
-pip install image-classifiers seaborn pandas
+pip install tensorflow-gpu==1.14.0
+pip install image-classifiers seaborn pandas tensorflow-datasets tqdm ipywidgets  --upgrade
 ```
