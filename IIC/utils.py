@@ -77,9 +77,12 @@ def unsupervised_labels(y, y_hat, num_classes, num_clusters):
 
 
 class PredictionsHistory(keras.callbacks.Callback):
-    def __init__(self, validation_data=(), interval: int = 20):
+    def __init__(self, name, model, validation_data=(), num_classes: int = 10, interval: int = 20):
         super().__init__()
+        self.name = name
+        self.pred_model = model
         self.interval = interval
+        self.num_classes = num_classes
         self.data = validation_data
         self.heads_y_pred = defaultdict(list)
         self.y_true = []
@@ -92,7 +95,7 @@ class PredictionsHistory(keras.callbacks.Callback):
         if batch % self.interval == 0:
             features, labels = next(self.data)
             y_true = labels["label"].numpy()
-            heads_p_pred = self.model.predict(features)
+            heads_p_pred = self.pred_model.predict(features)
             if type(heads_p_pred) == np.ndarray:
                 heads_p_pred = [heads_p_pred]
 
@@ -105,9 +108,10 @@ class PredictionsHistory(keras.callbacks.Callback):
     def on_epoch_end(self, epoch, logs=None):
         error_string = " "
         count = len(self.y_true)
+        nc = self.num_classes
         for k, y_pred in self.heads_y_pred.items():
-            error = unsupervised_labels(self.y_true, y_pred, 10, 10)
-            error_string += f" head[{k}]: {error:.4f} [{count}]"
+            error = unsupervised_labels(self.y_true, y_pred, nc, nc)
+            error_string += f" {self.name}_head[{k}]: {error:.4f} [{count}]"
         print(error_string)
 
         self.heads_y_pred = defaultdict(list)
