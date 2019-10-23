@@ -232,10 +232,10 @@ def sample_classification_dataset(
         }
         print(f"Number of classes after rejections is {len(label_images)}.")
 
-    print(f"Selecting most distance examples from buffers")
+    print(f"Selecting most distance examples from buffers ...")
     selected_images = []
     selected_labels = []
-    for label, images in label_images.items():
+    for label, images in tqdm(label_images.items()):
         images = np.array(images)
         images = select_most_distance_vectors(
             images, min_num_occurrences, distance_fn=distance_fn
