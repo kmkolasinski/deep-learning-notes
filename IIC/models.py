@@ -1,7 +1,9 @@
-from typing import Tuple, List, Optional
+from typing import Tuple, List, Optional, Dict
 
 import tensorflow as tf
 from classification_models.models.resnet import *
+
+from iic_loss_ops import iic_loss
 
 keras = tf.keras
 K = tf.keras.backend
@@ -64,3 +66,35 @@ def create_iic_model(
     return keras.Model(
         image_input, {"main_heads": main_head_outputs, "aux_heads": aux_head_outputs}
     )
+
+
+def get_iic_target_loss(
+    model_outputs: Dict[str, List[tf.Tensor]],
+    model_tf_outputs: Dict[str, List[tf.Tensor]],
+):
+    mean_head_losses = {}
+    sub_heads_losses = {}
+    for head_name, heads_p_out in model_outputs.items():
+        if len(heads_p_out) == 0:
+            continue
+        num_heads = len(heads_p_out)
+        heads_p_tf_out = model_tf_outputs[head_name]
+        sub_head_losses = [
+            iic_loss(heads_p_out[k], heads_p_tf_out[k]) for k in range(num_heads)
+        ]
+        mean_head_losses[f"{head_name}/mean_loss"] = tf.add_n(sub_head_losses) / num_heads
+        sub_heads_losses[head_name] = {f"{head_name}/head_{k}_loss": l for k, l in enumerate(sub_head_losses)}
+
+    return mean_head_losses, sub_heads_losses
+
+
+def add_losses_to_model(model: keras.Model, losses: Dict[str, tf.Tensor]) -> None:
+    for name, loss in losses.items():
+        print(f"Adding loss to model: {name}")
+        model.add_loss(loss)
+    add_metrics_to_model(model, losses)
+
+
+def add_metrics_to_model(model: keras.Model, metrics: Dict[str, tf.Tensor]) -> None:
+    for name, metric_value in metrics.items():
+        model.add_metric(metric_value, name=name, aggregation='mean')

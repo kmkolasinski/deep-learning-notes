@@ -23,7 +23,7 @@ def plot_image_pairs(
     for i in range(num_examples):
         plt.subplot(121)
         plt.title(labels["label"].numpy()[i])
-        plt_imshow(features["image"][i, ...])        
+        plt_imshow(features["image"][i, ...])
         if "tf_image" in features:
             plt.subplot(122)
             plt_imshow(features["tf_image"][i, ...])
@@ -77,7 +77,9 @@ def unsupervised_labels(y, y_hat, num_classes, num_clusters):
 
 
 class PredictionsHistory(keras.callbacks.Callback):
-    def __init__(self, name, model, validation_data=(), num_classes: int = 10, interval: int = 20):
+    def __init__(
+        self, name, model, validation_data=(), num_classes: int = 10, interval: int = 20
+    ):
         super().__init__()
         self.name = name
         self.pred_model = model

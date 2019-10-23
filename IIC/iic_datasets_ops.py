@@ -1,7 +1,9 @@
 import math
+from collections import defaultdict
 from typing import Tuple
-
+import numpy as np
 import tensorflow as tf
+from tqdm import tqdm
 
 
 def default_preprocess_features_and_labels(image: tf.Tensor, label: tf.Tensor):
@@ -164,3 +166,84 @@ def prepare_dataset(
     model_input_shape = dataset.output_shapes[0]["image"].as_list()[1:]
 
     return dataset, model_input_shape
+
+
+def image_per_pixel_euclidean_distance_fn(
+    image: np.ndarray, images: np.ndarray
+) -> np.ndarray:
+    num_images = images.shape[0]
+    image = image.reshape([1, -1]) / 255.0
+    images = images.reshape([num_images, -1]) / 255.0
+    return np.sqrt((image - images) ** 2).mean(-1)
+
+
+def select_most_distance_vectors(
+    vectors: np.ndarray, k: int, distance_fn=image_per_pixel_euclidean_distance_fn
+) -> np.ndarray:
+    """
+
+    Args:
+        vectors: array of shape [num_examples, ...]
+        k: integer k < num_examples
+        distance_fn:
+
+    Returns:
+
+    """
+    num_images = vectors.shape[0]
+    farthest_pts = np.zeros((k, *vectors.shape[1:]), dtype=np.uint8)
+    farthest_pts[0] = vectors[np.random.randint(len(vectors))]
+    distances = distance_fn(farthest_pts[0], vectors)
+    assert distances.shape == (num_images,)
+
+    for i in range(1, k):
+        farthest_pts[i] = vectors[np.argmax(distances)]
+        distances = np.minimum(distances, distance_fn(farthest_pts[i], vectors))
+    return farthest_pts
+
+
+def sample_classification_dataset(
+    dataset: tf.data.Dataset,
+    min_num_occurrences: int = 20,
+    class_buffer_size: int = 100,
+    reject_rare_classes: bool = True,
+    distance_fn=image_per_pixel_euclidean_distance_fn,
+) -> tf.data.Dataset:
+
+    assert dataset.output_types == (tf.uint8, tf.int64)
+    # expecting image of fixed size
+    assert len(dataset.output_shapes[0]) == 3
+    assert all([c is not None for c in dataset.output_shapes[0]])
+    assert dataset.output_shapes[1] == []
+
+    dataset_iterator = dataset.repeat(1).make_one_shot_iterator()
+
+    label_images = defaultdict(list)
+    for image, label in tqdm(dataset_iterator):
+        label = label.numpy()
+        image = image.numpy()
+        if len(label_images[label]) < class_buffer_size:
+            label_images[label].append(image)
+
+    print(f"Found n={len(label_images)} classes in dataset.")
+    if reject_rare_classes:
+        label_images = {
+            l: im for l, im in label_images.items() if len(im) >= min_num_occurrences
+        }
+        print(f"Number of classes after rejections is {len(label_images)}.")
+
+    print(f"Selecting most distance examples from buffers")
+    selected_images = []
+    selected_labels = []
+    for label, images in label_images.items():
+        images = np.array(images)
+        images = select_most_distance_vectors(
+            images, min_num_occurrences, distance_fn=distance_fn
+        )
+        labels = np.array([label] * min_num_occurrences)
+        selected_images.append(images)
+        selected_labels.append(labels)
+
+    return tf.data.Dataset.from_tensor_slices(
+        (np.vstack(selected_images), np.hstack(selected_labels))
+    )
