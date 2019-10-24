@@ -17,12 +17,15 @@ def get_default_image_aug_fn(
     skew: float = 0.1,
     translation: float = 0.15,
     crop: float = 0.3,
+    center_crop: float = 0.0,
     hue: float = 0.05,
     saturation: float = 0.2,
-    brightness: float = 0.05,
+    brightness: float = 0.1,
     contrast: float = 0.3,
-    uniform_noise: float = 0.01,
+    uniform_noise: float = 0.02,
 ):
+    center_crop_fraction = 1.0 - center_crop
+    
     def aug_fn(image: tf.Tensor) -> tf.Tensor:
 
         height, width, num_channels = image.shape.as_list()
@@ -67,7 +70,11 @@ def get_default_image_aug_fn(
 
             image = tf.image.random_crop(image, random_crop_size)
             image = tf.image.resize(image, (height, width))
-
+        
+        if center_crop != 0:
+            image = tf.image.central_crop(image, center_crop_fraction)
+            image = tf.image.resize(image, (height, width))
+        
         # additional processing for RGB images
         if num_channels == 3:
             if hue != 0:
@@ -83,10 +90,11 @@ def get_default_image_aug_fn(
 
         # add random noise
         if uniform_noise != 0:
+            amplitude = tf.random_uniform([], minval=0.0, maxval=1.0)
             noise = tf.random_uniform(
                 tf.shape(image), minval=-uniform_noise, maxval=uniform_noise
             )
-            image = image + noise
+            image = image + amplitude * noise
 
         image = tf.clip_by_value(image, 0.0, 1.0)
         return image
