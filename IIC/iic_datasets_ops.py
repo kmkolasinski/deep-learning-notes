@@ -216,7 +216,8 @@ def sample_classification_dataset(
     class_buffer_size: int = 100,
     reject_rare_classes: bool = True,
     distance_fn=image_per_pixel_euclidean_distance_fn,
-) -> tf.data.Dataset:
+    as_numpy: bool = False
+):
 
     assert dataset.output_types == (tf.uint8, tf.int64)
     # expecting image of fixed size
@@ -251,7 +252,9 @@ def sample_classification_dataset(
         labels = np.array([label] * min_num_occurrences)
         selected_images.append(images)
         selected_labels.append(labels)
-
-    return tf.data.Dataset.from_tensor_slices(
-        (np.vstack(selected_images), np.hstack(selected_labels))
-    )
+    images = np.vstack(selected_images)
+    labels = np.hstack(selected_labels)
+    if as_numpy:
+        return images, labels
+    
+    return tf.data.Dataset.from_tensor_slices((images, labels))
