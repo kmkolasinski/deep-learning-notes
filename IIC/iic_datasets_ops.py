@@ -11,7 +11,26 @@ def default_preprocess_features_and_labels(image: tf.Tensor, label: tf.Tensor):
     image = tf.cast(image, tf.float32) / 255.0
     return {"image": image}, {"label": label}
 
+def apply_sobel(image: tf.Tensor, method: str = "sobel") -> tf.Tensor:
+    
+    sobel1 = np.array([[1, 0, -1], [2, 0, -2], [1, 0, -1]])
+    sobel2 = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
+    sobel = np.array([sobel1, sobel2]).transpose([1, 2, 0]).reshape([3, 3, 1, 2]).astype(np.float32)
 
+    gray_image = tf.reduce_mean(image, axis=-1, keepdims=True)
+    gray_image = tf.expand_dims(gray_image, 0)    
+    sobel_image = tf.nn.conv2d(gray_image, sobel, padding='SAME')
+    
+    if method == "sobel":
+        return sobel_image[0]
+    if method == "sobel_gray":
+        return tf.concat([sobel_image, gray_image], axis=-1)[0]
+    if method == "sobel_rgb":
+        return tf.concat([sobel_image, tf.expand_dims(image, 0)], axis=-1)[0]
+    
+    raise ValueError("Not implemented sobel method")
+    
+    
 def get_default_image_aug_fn(
     rotation: float = 0.15,
     skew: float = 0.1,
@@ -19,15 +38,19 @@ def get_default_image_aug_fn(
     crop: float = 0.3,
     center_crop: float = 0.0,
     hue: float = 0.05,
-    saturation: float = 0.2,
-    brightness: float = 0.1,
+    saturation: float = 0.3,
+    brightness: float = 0.3,
     contrast: float = 0.3,
     uniform_noise: float = 0.02,
+    sobel: str = None
 ):
     center_crop_fraction = 1.0 - center_crop
     
     def aug_fn(image: tf.Tensor) -> tf.Tensor:
-
+        
+        if sobel is not None:
+            image = apply_sobel(image, sobel)
+        
         height, width, num_channels = image.shape.as_list()
 
         if rotation != 0:
