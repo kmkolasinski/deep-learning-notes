@@ -13,6 +13,12 @@ keras = tf.keras
 def plt_imshow(image: np.ndarray):
     if image.shape[-1] == 3:
         return plt.imshow(image)
+    elif image.shape[-1] == 5:
+        zeros = np.zeros_like(image)[..., :1]
+        sobel_image = np.concatenate([image[..., :2], zeros], -1)
+        rgb_image = image[..., 2:]
+        full_image = np.hstack([sobel_image, rgb_image])
+        return plt.imshow(full_image)
     else:
         return plt.imshow(image[..., 0])
 
