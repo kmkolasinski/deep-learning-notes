@@ -6,4 +6,4 @@ __pycache__
 *.pkl
 .pytest_cache
 subclasses-omniglot/models
-
+.cache
