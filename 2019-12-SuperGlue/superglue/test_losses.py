@@ -58,19 +58,21 @@ class TestSinkhornKnoppLayer(tf.test.TestCase):
         self.assertEqual(Pij.shape, [3, 5, 5])
         a_vec = np.ones([5])
         b_vec = np.ones([5])
-        Pij_np, _ = losses.py_compute_optimal_transport(- Sij[0].numpy(), a_vec, b_vec, lam=5)
+        Pij_np, _ = losses.py_compute_optimal_transport(
+            -Sij[0].numpy(), a_vec, b_vec, lam=5
+        )
         self.assertAllClose(Pij_np, Pij[0].numpy(), atol=1e-6)
 
     def test_super_glue_sinkhorn_knopp_layer(self):
 
-        sk_layer = losses.SuperGlueSinkhornKnoppLayer(lam=5.0, num_steps=200)
+        sk_layer = losses.AugmentedSinkhornKnoppLayer(lam=5.0, num_steps=200)
 
         with tf.GradientTape() as tape:
             sA = tf.random.normal([3, 5, 7])
             sB = tf.random.normal([3, 5, 7])
             tape.watch([sA, sB])
             Pij, _ = sk_layer(sA, sB)
-            loss = - tf.math.log(Pij[:, 0, 0])
+            loss = -tf.math.log(Pij[:, 0, 0])
             gradients = tape.gradient(loss, [sk_layer.weights[0], sA, sB])
 
         self.assertAllEqual(np.abs(gradients[1].numpy()) > 0, np.ones_like(sA))
@@ -80,7 +82,7 @@ class TestSinkhornKnoppLayer(tf.test.TestCase):
         self.assertEqual(Pij.shape, (3, 6, 6))
 
     def test_super_glue_sinkhorn_knopp_layer_static(self):
-        sk_layer = losses.SuperGlueSinkhornKnoppLayer(lam=5.0, num_steps=100)
+        sk_layer = losses.AugmentedSinkhornKnoppLayer(lam=5.0, num_steps=100)
 
         @tf.function
         def step():
@@ -89,10 +91,9 @@ class TestSinkhornKnoppLayer(tf.test.TestCase):
                 sB = tf.random.normal([3, 5, 7])
                 tape.watch([sA, sB])
                 Pij, _ = sk_layer(sA, sB)
-                loss = - tf.math.log(Pij[:, 0, 0])
+                loss = -tf.math.log(Pij[:, 0, 0])
                 gradients = tape.gradient(loss, sk_layer.weights)
             return loss, gradients
 
         loss, grads = step()
         loss, grads = step()
-

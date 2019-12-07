@@ -96,17 +96,21 @@ def assignment_log_likelihood(Pij, matches):
 
     pij_matches = tf.gather_nd(Pij, matches, batch_dims=1)
     pij_matches = tf.clip_by_value(pij_matches, 1e-7, 1.0)
-    loss = - tf.math.log(pij_matches)
+    loss = -tf.math.log(pij_matches)
     loss = tf.reduce_mean(loss, -1)
     return tf.reduce_mean(loss)
 
 
-def assignment_log_likelihood_from_matrix(pij_labels, pij_predicted):
+def assignment_log_likelihood_from_matrix(pij_labels, pij_predicted, scale = 1.0):
     pij = pij_predicted
     pij = tf.clip_by_value(pij, 1e-7, 1.0)
-    log_loss = - pij_labels * tf.math.log(pij)
+    log_loss = -pij_labels * tf.math.log(pij)
     log_loss = tf.reduce_sum(log_loss, axis=[1, 2])
-    return tf.reduce_mean(log_loss)
+    return tf.reduce_mean(log_loss) * scale
+
+
+def get_assignment_loss(scale: float):
+    return lambda targets, predicted: assignment_log_likelihood_from_matrix(targets, predicted, scale=scale)
 
 
 class SinkhornKnoppLayer(tf.keras.layers.Layer):
@@ -124,7 +128,7 @@ class SinkhornKnoppLayer(tf.keras.layers.Layer):
         return Sij
 
     def compute_optimal_transport(self, Sij, a_vec, b_vec):
-        Cij = - Sij  # convert scores matrix to cost matrix
+        Cij = -Sij  # convert scores matrix to cost matrix
         Cij = tf.clip_by_value(Cij, -15 / self.lam, +15 / self.lam)
         # solve optimal transport using python solver to find good initial conditions
         # for the graph based approach.
@@ -135,7 +139,7 @@ class SinkhornKnoppLayer(tf.keras.layers.Layer):
         # need only one iteration to reach convergence
         alpha_beta = Pij_optimal * tf.exp(self.lam * Cij)
         alpha_beta = tf.stop_gradient(alpha_beta)
-        Pij_0 = alpha_beta * tf.exp(- self.lam * Cij)
+        Pij_0 = alpha_beta * tf.exp(-self.lam * Cij)
         Pij_0 = normalize_pij(Pij_0)
         return sinkhorn_step(Pij_0, a_vec, b_vec)
 
@@ -152,7 +156,7 @@ class SinkhornKnoppLayer(tf.keras.layers.Layer):
 
 
 class AugmentedSinkhornKnoppLayer(SinkhornKnoppLayer):
-    def __init__(self, lam: float = 5.0, num_steps: int = 100, dustbin_init = 0.0):
+    def __init__(self, lam: float = 5.0, num_steps: int = 100, dustbin_init=0.0):
         super(AugmentedSinkhornKnoppLayer, self).__init__(lam=lam, num_steps=num_steps)
         self.dustbin_variable = tf.Variable(dustbin_init)
 

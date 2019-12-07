@@ -182,5 +182,4 @@ class SuperGlue(tf.keras.models.Model):
 
         fR = self.projection_layer(xR)
         fL = self.projection_layer(xL)
-
         return fR, fL

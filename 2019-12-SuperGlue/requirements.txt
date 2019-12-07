@@ -1,0 +1,8 @@
+tensorflow-gpu==2.0
+image-classifiers==1.0.0
+seaborn==0.9.0
+pandas
+tensorflow-datasets
+tqdm
+ipywidgets
+tensorflow-addons==0.6.0
