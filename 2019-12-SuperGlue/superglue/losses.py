@@ -101,7 +101,7 @@ def assignment_log_likelihood(Pij, matches):
     return tf.reduce_mean(loss)
 
 
-def assignment_log_likelihood_from_matrix(pij_labels, pij_predicted, scale = 1.0):
+def assignment_log_likelihood_from_matrix(pij_labels, pij_predicted, scale=1.0):
     pij = pij_predicted
     pij = tf.clip_by_value(pij, 1e-7, 1.0)
     log_loss = -pij_labels * tf.math.log(pij)
@@ -110,7 +110,9 @@ def assignment_log_likelihood_from_matrix(pij_labels, pij_predicted, scale = 1.0
 
 
 def get_assignment_loss(scale: float):
-    return lambda targets, predicted: assignment_log_likelihood_from_matrix(targets, predicted, scale=scale)
+    return lambda targets, predicted: assignment_log_likelihood_from_matrix(
+        targets, predicted, scale=scale
+    )
 
 
 class SinkhornKnoppLayer(tf.keras.layers.Layer):

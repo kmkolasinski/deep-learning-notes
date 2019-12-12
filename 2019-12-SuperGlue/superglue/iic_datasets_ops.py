@@ -69,9 +69,7 @@ def get_default_image_aug_fn(
         if skew != 0:
             alpha = tf.random.uniform(shape=[], minval=-skew, maxval=skew)
             transform = [1, tf.sin(alpha), 0, 0, tf.cos(alpha), 0, 0, 0]
-            image = tfa.image.transform(
-                image, transform, interpolation="BILINEAR"
-            )
+            image = tfa.image.transform(image, transform, interpolation="BILINEAR")
 
         if translation != 0:
             random_ty = tf.random.uniform(

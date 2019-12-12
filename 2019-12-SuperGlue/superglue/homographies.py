@@ -29,10 +29,21 @@ import cv2 as cv
 
 
 def sample_homography(
-        shape, perspective=True, scaling=True, rotation=True, translation=True,
-        n_scales=5, n_angles=25, scaling_amplitude=0.05, perspective_amplitude_x=0.05,
-        perspective_amplitude_y=0.1, patch_ratio=0.5, max_angle=pi/4,
-        allow_artifacts=False, translation_overflow=0.):
+    shape,
+    perspective=True,
+    scaling=True,
+    rotation=True,
+    translation=True,
+    n_scales=5,
+    n_angles=25,
+    scaling_amplitude=0.05,
+    perspective_amplitude_x=0.05,
+    perspective_amplitude_y=0.1,
+    patch_ratio=0.5,
+    max_angle=pi / 4,
+    allow_artifacts=False,
+    translation_overflow=0.0,
+):
     """Sample a random valid homography.
 
     Computes the homography transformation between a random patch in the original image
@@ -64,9 +75,10 @@ def sample_homography(
 
     # Corners of the output image
     margin = (1 - patch_ratio) / 2
-    pts1 = margin + tf.constant([[0, 0], [0, patch_ratio],
-                                 [patch_ratio, patch_ratio], [patch_ratio, 0]],
-                                tf.float32)
+    pts1 = margin + tf.constant(
+        [[0, 0], [0, patch_ratio], [patch_ratio, patch_ratio], [patch_ratio, 0]],
+        tf.float32,
+    )
     # Corners of the input patch
     pts2 = pts1
 
@@ -75,27 +87,42 @@ def sample_homography(
         if not allow_artifacts:
             perspective_amplitude_x = min(perspective_amplitude_x, margin)
             perspective_amplitude_y = min(perspective_amplitude_y, margin)
-        perspective_displacement = tf.random.truncated_normal([1], 0., perspective_amplitude_y/2)
-        h_displacement_left = tf.random.truncated_normal([1], 0., perspective_amplitude_x/2)
-        h_displacement_right = tf.random.truncated_normal([1], 0., perspective_amplitude_x/2)
-        pts2 += tf.stack([tf.concat([h_displacement_left, perspective_displacement], 0),
-                          tf.concat([h_displacement_left, -perspective_displacement], 0),
-                          tf.concat([h_displacement_right, perspective_displacement], 0),
-                          tf.concat([h_displacement_right, -perspective_displacement],
-                                    0)])
+        perspective_displacement = tf.random.truncated_normal(
+            [1], 0.0, perspective_amplitude_y / 2
+        )
+        h_displacement_left = tf.random.truncated_normal(
+            [1], 0.0, perspective_amplitude_x / 2
+        )
+        h_displacement_right = tf.random.truncated_normal(
+            [1], 0.0, perspective_amplitude_x / 2
+        )
+        pts2 += tf.stack(
+            [
+                tf.concat([h_displacement_left, perspective_displacement], 0),
+                tf.concat([h_displacement_left, -perspective_displacement], 0),
+                tf.concat([h_displacement_right, perspective_displacement], 0),
+                tf.concat([h_displacement_right, -perspective_displacement], 0),
+            ]
+        )
 
     # Random scaling
     # sample several scales, check collision with borders, randomly pick a valid one
     if scaling:
         scales = tf.concat(
-                [[1.], tf.random.truncated_normal([n_scales], 1, scaling_amplitude/2)], 0)
+            [[1.0], tf.random.truncated_normal([n_scales], 1, scaling_amplitude / 2)], 0
+        )
         center = tf.reduce_mean(pts2, axis=0, keepdims=True)
-        scaled = tf.expand_dims(pts2 - center, axis=0) * tf.expand_dims(
-                tf.expand_dims(scales, 1), 1) + center
+        scaled = (
+            tf.expand_dims(pts2 - center, axis=0)
+            * tf.expand_dims(tf.expand_dims(scales, 1), 1)
+            + center
+        )
         if allow_artifacts:
             valid = tf.range(n_scales)  # all scales are valid except scale=1
         else:
-            valid = tf.where(tf.reduce_all((scaled >= 0.) & (scaled < 1.), [1, 2]))[:, 0]
+            valid = tf.where(tf.reduce_all((scaled >= 0.0) & (scaled < 1.0), [1, 2]))[
+                :, 0
+            ]
         idx = valid[tf.random.uniform((), maxval=tf.shape(valid)[0], dtype=tf.int32)]
         pts2 = scaled[idx]
 
@@ -105,26 +132,42 @@ def sample_homography(
         if allow_artifacts:
             t_min += translation_overflow
             t_max += translation_overflow
-        pts2 += tf.expand_dims(tf.stack([tf.random.uniform((), -t_min[0], t_max[0]),
-                                         tf.random.uniform((), -t_min[1], t_max[1])]),
-                               axis=0)
+        pts2 += tf.expand_dims(
+            tf.stack(
+                [
+                    tf.random.uniform((), -t_min[0], t_max[0]),
+                    tf.random.uniform((), -t_min[1], t_max[1]),
+                ]
+            ),
+            axis=0,
+        )
 
     # Random rotation
     # sample several rotations, check collision with borders, randomly pick a valid one
     if rotation:
         angles = tf.linspace(tf.constant(-max_angle), tf.constant(max_angle), n_angles)
-        angles = tf.concat([[0.], angles], axis=0)  # in case no rotation is valid
+        angles = tf.concat([[0.0], angles], axis=0)  # in case no rotation is valid
         center = tf.reduce_mean(pts2, axis=0, keepdims=True)
-        rot_mat = tf.reshape(tf.stack([tf.cos(angles), -tf.sin(angles), tf.sin(angles),
-                                       tf.cos(angles)], axis=1), [-1, 2, 2])
-        rotated = tf.matmul(
-                tf.tile(tf.expand_dims(pts2 - center, axis=0), [n_angles+1, 1, 1]),
-                rot_mat) + center
+        rot_mat = tf.reshape(
+            tf.stack(
+                [tf.cos(angles), -tf.sin(angles), tf.sin(angles), tf.cos(angles)],
+                axis=1,
+            ),
+            [-1, 2, 2],
+        )
+        rotated = (
+            tf.matmul(
+                tf.tile(tf.expand_dims(pts2 - center, axis=0), [n_angles + 1, 1, 1]),
+                rot_mat,
+            )
+            + center
+        )
         if allow_artifacts:
             valid = tf.range(n_angles)  # all angles are valid, except angle=0
         else:
-            valid = tf.where(tf.reduce_all((rotated >= 0.) & (rotated < 1.),
-                                           axis=[1, 2]))[:, 0]
+            valid = tf.where(
+                tf.reduce_all((rotated >= 0.0) & (rotated < 1.0), axis=[1, 2])
+            )[:, 0]
         idx = valid[tf.random.uniform((), maxval=tf.shape(valid)[0], dtype=tf.int32)]
         pts2 = rotated[idx]
 
@@ -133,13 +176,16 @@ def sample_homography(
     pts1 *= tf.expand_dims(shape, axis=0)
     pts2 *= tf.expand_dims(shape, axis=0)
 
-    def ax(p, q): return [p[0], p[1], 1, 0, 0, 0, -p[0] * q[0], -p[1] * q[0]]
+    def ax(p, q):
+        return [p[0], p[1], 1, 0, 0, 0, -p[0] * q[0], -p[1] * q[0]]
 
-    def ay(p, q): return [0, 0, 0, p[0], p[1], 1, -p[0] * q[1], -p[1] * q[1]]
+    def ay(p, q):
+        return [0, 0, 0, p[0], p[1], 1, -p[0] * q[1], -p[1] * q[1]]
 
     a_mat = tf.stack([f(pts1[i], pts2[i]) for i in range(4) for f in (ax, ay)], axis=0)
-    p_mat = tf.transpose(tf.stack(
-        [[pts2[i][j] for i in range(4) for j in range(2)]], axis=0))
+    p_mat = tf.transpose(
+        tf.stack([[pts2[i][j] for i in range(4) for j in range(2)]], axis=0)
+    )
     homography = tf.transpose(tf.linalg.lstsq(a_mat, p_mat, fast=True))
     return homography
 
@@ -181,13 +227,20 @@ def compute_valid_mask(image_shape, homography, erosion_radius=0):
 
     Returns: a Tensor of type `tf.int32` and shape (H, W).
     """
-    mask = H_transform(tf.ones(image_shape), homography, interpolation='NEAREST')
+    mask = H_transform(tf.ones(image_shape), homography, interpolation="NEAREST")
     if erosion_radius > 0:
-        kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, (erosion_radius*2,)*2)
-        mask = tf.nn.erosion2d(
+        kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, (erosion_radius * 2,) * 2)
+        mask = (
+            tf.nn.erosion2d(
                 mask[tf.newaxis, ..., tf.newaxis],
                 tf.cast(tf.constant(kernel)[..., tf.newaxis], tf.float32),
-                [1, 1, 1, 1], 'SAME', 'NHWC', [1,1,1,1])[0, ..., 0] + 1.
+                [1, 1, 1, 1],
+                "SAME",
+                "NHWC",
+                [1, 1, 1, 1],
+            )[0, ..., 0]
+            + 1.0
+        )
     return tf.cast(mask, tf.int32)
 
 
@@ -219,8 +272,8 @@ def warp_points(points, homography):
 
 
 def filter_points(points, shape):
-    with tf.name_scope('filter_points'):
-        mask = (points >= 0) & (points <= tf.cast(shape-1, tf.float32))
+    with tf.name_scope("filter_points"):
+        mask = (points >= 0) & (points <= tf.cast(shape - 1, tf.float32))
         return tf.boolean_mask(points, tf.reduce_all(mask, -1))
 
 
@@ -252,8 +305,7 @@ def warp_keypoints_to_list(packed_arg):
     H_inv = flat2mat(H_inv)
     H_inv = tf.transpose(H_inv[0, ...])
     warped_keypoints = tf.matmul(keypoints, H_inv)
-    warped_keypoints = tf.round(warped_keypoints[:, :2]
-                                / warped_keypoints[:, 2:])
+    warped_keypoints = tf.round(warped_keypoints[:, :2] / warped_keypoints[:, 2:])
     warped_keypoints = warped_keypoints[:, ::-1]
 
     return warped_keypoints
@@ -277,39 +329,42 @@ def warp_keypoints_to_map(packed_arg):
     # Remove points outside the image
     zeros = tf.cast(tf.zeros([n_keypoints]), dtype=tf.bool)
     ones = tf.cast(tf.ones([n_keypoints]), dtype=tf.bool)
-    loc = tf.logical_and(tf.where(warped_keypoints[:, 0] >= 0, ones, zeros),
-                         tf.where(warped_keypoints[:, 0] < shape[0],
-                                  ones,
-                                  zeros))
+    loc = tf.logical_and(
+        tf.where(warped_keypoints[:, 0] >= 0, ones, zeros),
+        tf.where(warped_keypoints[:, 0] < shape[0], ones, zeros),
+    )
     loc = tf.logical_and(loc, tf.where(warped_keypoints[:, 1] >= 0, ones, zeros))
-    loc = tf.logical_and(loc,
-                         tf.where(warped_keypoints[:, 1] < shape[1],
-                                  ones,
-                                  zeros))
+    loc = tf.logical_and(loc, tf.where(warped_keypoints[:, 1] < shape[1], ones, zeros))
     warped_keypoints = tf.boolean_mask(warped_keypoints, loc)
 
     # Output the new map of keypoints
-    new_map = tf.scatter_nd(warped_keypoints,
-                            tf.ones([tf.shape(warped_keypoints)[0]], dtype=tf.float32),
-                            shape)
+    new_map = tf.scatter_nd(
+        warped_keypoints,
+        tf.ones([tf.shape(warped_keypoints)[0]], dtype=tf.float32),
+        shape,
+    )
 
     return new_map
 
 
 def homographic_augmentation(data, add_homography=False, **config):
-    with tf.name_scope('homographic_augmentation'):
-        image_shape = tf.shape(data['image'])[:2]
-        homography = sample_homography(image_shape, **config['params'])[0]
-        warped_image = H_transform(
-                data['image'], homography, interpolation='BILINEAR')
-        valid_mask = compute_valid_mask(image_shape, homography,
-                                        config['valid_border_margin'])
+    with tf.name_scope("homographic_augmentation"):
+        image_shape = tf.shape(data["image"])[:2]
+        homography = sample_homography(image_shape, **config["params"])[0]
+        warped_image = H_transform(data["image"], homography, interpolation="BILINEAR")
+        valid_mask = compute_valid_mask(
+            image_shape, homography, config["valid_border_margin"]
+        )
 
-        warped_points = warp_points(data['keypoints'], homography)
+        warped_points = warp_points(data["keypoints"], homography)
         warped_points = filter_points(warped_points, image_shape)
 
-    ret = {**data, 'image': warped_image, 'keypoints': warped_points,
-           'valid_mask': valid_mask}
+    ret = {
+        **data,
+        "image": warped_image,
+        "keypoints": warped_points,
+        "valid_mask": valid_mask,
+    }
     if add_homography:
-        ret['homography'] = homography
+        ret["homography"] = homography
     return ret
