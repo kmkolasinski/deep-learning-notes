@@ -2,6 +2,7 @@
 Model path taken from: https://github.com/mmmfarrell/SuperPoint/blob/master/pretrained_models/sp_v5.tgz
 SuperPoint Implementation: https://github.com/rpautrat/SuperPoint
 """
+from pathlib import Path
 from typing import List, Tuple, Union
 
 import cv2 as cv
@@ -91,9 +92,9 @@ class Keypoints:
 
 
 class SuperPointExtractor:
-    def __init__(self, saved_model_path: str, k_top_keypoints: int = 1000):
-        self.saved_model_path = saved_model_path
-        self.imported_model = tf.saved_model.load(saved_model_path, tags=["serve"])
+    def __init__(self, saved_model_path: Path, k_top_keypoints: int = 1000):
+        self.saved_model_path = Path(saved_model_path)
+        self.imported_model = tf.saved_model.load(str(saved_model_path), tags=["serve"])
         self.predict_fn = self.imported_model.signatures["serving_default"]
         self.k_top_keypoints = k_top_keypoints
 

@@ -1,5 +1,8 @@
+from pathlib import Path
 from typing import Tuple
 import numpy as np
+from PIL import Image
+
 from superglue.keypoint_extractors import SuperPointExtractor, Keypoints
 from superglue.homographies import (
     homographic_augmentation,
@@ -157,8 +160,6 @@ def prepare_training_assignments(
     num_features = tf.shape(features_a)[0]
     latent_size = tf.shape(features_a)[1]
 
-    print(num_valid_matches, num_features)
-
     image_scale = tf.cast(tf.constant([image_size]), tf.float32)
     features_a = pad_or_slice(features_a, num_matches)
     features_b = pad_or_slice(features_b, num_matches)
@@ -183,11 +184,13 @@ def prepare_training_assignments(
 
 
 def create_training_image_pair_sampler_fn(
-    extractor: SuperPointExtractor, image_size: Tuple[int, int],
+    extractor: SuperPointExtractor, image_size: Tuple[int, int] = None,
     reprojection_threshold: float = 5, num_matches=512
 ):
     def sample_fn(image: np.ndarray):
-        image = tf.image.resize(image, size=image_size)
+        if image_size is not None:
+            image = tf.image.resize(image, size=image_size)
+
         keypoints = extractor.extract(image)
         fa = keypoints.features
         ka = keypoints.keypoints
@@ -221,3 +224,26 @@ def create_training_image_pair_sampler_fn(
                 num_matches=num_matches,
         )
     return sample_fn
+
+
+def superpoint_image_pair_generator(
+    images_dir: Path,
+    model_dir: Path,
+    image_size: Tuple[int, int],
+    reprojection_threshold: float = 5,
+    num_matches=512
+):
+    extractor = SuperPointExtractor(model_dir)
+    sample_fn = create_training_image_pair_sampler_fn(
+        extractor=extractor,
+        image_size=image_size,
+        reprojection_threshold=reprojection_threshold,
+        num_matches=num_matches,
+    )
+    images = [np.array(Image.open(p).resize(image_size)) for p in list(Path(images_dir).glob("*.jpg"))]
+
+    while True:
+        index = np.random.randint(0, len(images))
+        image = images[index]
+        transformed_image, (features, labels) = sample_fn(image)
+        yield features, labels
