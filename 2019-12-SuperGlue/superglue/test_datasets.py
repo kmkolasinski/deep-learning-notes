@@ -5,7 +5,7 @@ from scipy.spatial import distance_matrix
 import superglue.datasets as datasets
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-
+tf.enable_eager_execution()
 find_valid_matches = tf.function(datasets.find_valid_matches)
 
 

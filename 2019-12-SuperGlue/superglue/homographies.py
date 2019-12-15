@@ -22,8 +22,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 import tensorflow as tf
-
-from tensorflow_addons.image import transform as H_transform
+try:
+    from tensorflow_addons.image import transform as H_transform
+except:
+    from tensorflow.contrib.image import transform as H_transform
 from math import pi
 import cv2 as cv
 

@@ -4,7 +4,7 @@ import numpy as np
 import superglue.losses as losses
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-
+tf.enable_eager_execution()
 K = tf.keras.backend
 keras = tf.keras
 

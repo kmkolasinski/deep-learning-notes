@@ -40,7 +40,22 @@ def scaled_dot_product_attention(q, k, v, mask):
     return output, attention_weights
 
 
-class MultiHeadAttention(tf.keras.layers.Layer):
+class Layer(tf.keras.layers.Layer):
+    def __init__(self, *args, **kwargs):
+        super(Layer, self).__init__(*args, **kwargs)
+
+    def call(self, inputs, mask=None, **kwargs):
+        if type(inputs) in [list, tuple]:
+            return self._call(*inputs, **kwargs)
+        elif type(inputs) == tf.Tensor:
+            return self._call(inputs, **kwargs)
+        else:
+            raise NotImplementedError(
+                f"Invalid input type to layer: {self.__class__.__name__}: {inputs}"
+            )
+
+
+class MultiHeadAttention(Layer):
     def __init__(self, d_model, num_heads):
         super(MultiHeadAttention, self).__init__()
         self.num_heads = num_heads
@@ -63,7 +78,7 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         x = tf.reshape(x, (batch_size, -1, self.num_heads, self.depth))
         return tf.transpose(x, perm=[0, 2, 1, 3])
 
-    def call(self, v, k, q, mask):
+    def _call(self, v, k, q, mask):
         batch_size = tf.shape(q)[0]
 
         q = self.wq(q)  # (batch_size, seq_len, d_model)
@@ -92,7 +107,7 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         return output, attention_weights
 
 
-class MLP(tf.keras.layers.Layer):
+class MLP(Layer):
     def __init__(self, depths, output_dim, activation="relu"):
         super(MLP, self).__init__()
         layers = []
@@ -105,31 +120,31 @@ class MLP(tf.keras.layers.Layer):
         layers += [tf.keras.layers.Dense(output_dim, activation=None)]
         self.model = tf.keras.Sequential(layers)
 
-    def call(self, x, training, **kwargs):
+    def _call(self, x, training = None, **kwargs):
         return self.model(x)
 
 
-class KeypointEncoderLayer(tf.keras.layers.Layer):
+class KeypointEncoderLayer(Layer):
     def __init__(self, mlp_model: tf.keras.layers.Layer):
         super(KeypointEncoderLayer, self).__init__()
         self.ffn = mlp_model
 
-    def call(self, d, p, training):
+    def _call(self, d, p, training):
         # (batch_size, input_seq_len, depth)
         x = d + self.ffn(p, training=training)
         return x
 
 
-class AttentionalMessagePassingLayer(tf.keras.layers.Layer):
+class AttentionalMessagePassingLayer(Layer):
     def __init__(self, d_model, num_heads, mle_model: tf.keras.layers.Layer):
         super(AttentionalMessagePassingLayer, self).__init__()
         self.mha = MultiHeadAttention(d_model, num_heads)
         self.ffn = mle_model
         self.attention_weights = []
 
-    def call(self, xi, xj, mask, training):
+    def _call(self, xi, xj, mask, training):
         # (batch_size, input_seq_len, d_model)
-        m_epsilon, attention_weights = self.mha(xj, xj, xi, mask)
+        m_epsilon, attention_weights = self.mha([xj, xj, xi, mask])
         self.attention_weights.append((xi, xj, attention_weights))
         # (batch_size, input_seq_len, 2 * d_model)
         output = tf.concat([xi, m_epsilon], axis=-1)
@@ -138,7 +153,7 @@ class AttentionalMessagePassingLayer(tf.keras.layers.Layer):
         return xi + ffn_output
 
 
-class SuperGlue(tf.keras.models.Model):
+class SuperGlue(Layer):
     def __init__(
         self,
         depth: int,
@@ -163,20 +178,21 @@ class SuperGlue(tf.keras.models.Model):
 
         self.projection_layer = tf.keras.layers.Dense(depth, activation=None)
 
-    def call(self, dR, pR, dL, pL, training):
-        xR = self.keypoint_encoder(dR, pR, training=training)
-        xL = self.keypoint_encoder(dL, pL, training=training)
+    def _call(self, dR, pR, dL, pL, training):
+
+        xR = self.keypoint_encoder([dR, pR], training=training)
+        xL = self.keypoint_encoder([dL, pL], training=training)
 
         for i, amp_layer in enumerate(self.amp_layers):
             l = i + 1
             if l % 2 == 1:
                 # self attention
-                xR = amp_layer(xR, xR, mask=None, training=training)
-                xL = amp_layer(xL, xL, mask=None, training=training)
+                xR = amp_layer([xR, xR, None], training=training)
+                xL = amp_layer([xL, xL, None], training=training)
             else:
                 # cross attention
-                xR_cross = amp_layer(xR, xL, mask=None, training=training)
-                xL_cross = amp_layer(xL, xR, mask=None, training=training)
+                xR_cross = amp_layer([xR, xL, None], training=training)
+                xL_cross = amp_layer([xL, xR, None], training=training)
                 xR = xR_cross
                 xL = xL_cross
 

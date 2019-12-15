@@ -145,7 +145,8 @@ class SinkhornKnoppLayer(tf.keras.layers.Layer):
         Pij_0 = normalize_pij(Pij_0)
         return sinkhorn_step(Pij_0, a_vec, b_vec)
 
-    def call(self, fA, fB):
+    def call(self, inputs, **kwargs):
+        fA, fB = inputs
         _, num_keypoints, _ = fA.shape.as_list()
         assert fA.shape == fB.shape
         fA = self.normalize_features(fA)
@@ -160,9 +161,20 @@ class SinkhornKnoppLayer(tf.keras.layers.Layer):
 class AugmentedSinkhornKnoppLayer(SinkhornKnoppLayer):
     def __init__(self, lam: float = 5.0, num_steps: int = 100, dustbin_init=0.0):
         super(AugmentedSinkhornKnoppLayer, self).__init__(lam=lam, num_steps=num_steps)
-        self.dustbin_variable = tf.Variable(dustbin_init)
+        self._dustbin_init = dustbin_init
 
-    def call(self, fA, fB):
+    def build(self, input_shape):
+        self.dustbin_variable = self.add_weight(
+            'dustbin_variable',
+            shape=[],
+            initializer=tf.keras.initializers.constant(self._dustbin_init),
+            dtype=tf.float32,
+            trainable=True)
+
+        self.built = True
+
+    def call(self, inputs, **kwargs):
+        fA, fB = inputs
         _, num_keypoints, latent_size = fA.shape.as_list()
         batch_size = tf.shape(fA)[0]
         assert fA.shape[1:] == fB.shape[1:]

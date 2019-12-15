@@ -2,14 +2,14 @@ from pathlib import Path
 from typing import Tuple
 import numpy as np
 from PIL import Image
-
+import cv2 as cv
 from superglue.keypoint_extractors import SuperPointExtractor, Keypoints
 from superglue.homographies import (
     homographic_augmentation,
     invert_homography,
     warp_points,
 )
-import tensorflow_addons as tfa
+
 import tensorflow as tf
 
 
@@ -83,11 +83,15 @@ def pad_or_slice(tensor: tf.Tensor, target_rows: int) -> tf.Tensor:
         tensor [target_rows, num_features]
     """
     num_rows = tf.shape(tensor)[0]
-    if target_rows < num_rows:
+
+    def slice_fn():
         return tensor[:target_rows, :]
 
-    num_rows_to_pad = target_rows - num_rows
-    return tf.pad(tensor, [[0, num_rows_to_pad], [0, 0]], "CONSTANT")
+    def pad_fn():
+        num_rows_to_pad = target_rows - num_rows
+        return tf.pad(tensor, [[0, num_rows_to_pad], [0, 0]], "CONSTANT")
+
+    return tf.cond(tf.less(target_rows, num_rows), true_fn=slice_fn, false_fn=pad_fn)
 
 
 def create_assignment_matrix(num_valid_matches, num_matches: int):
@@ -189,7 +193,10 @@ def create_training_image_pair_sampler_fn(
 ):
     def sample_fn(image: np.ndarray):
         if image_size is not None:
-            image = tf.image.resize(image, size=image_size)
+            if type(image) == np.ndarray:
+                image = cv.resize(image, dsize=image_size, interpolation=cv.INTER_LINEAR)
+            else:
+                image = tf.image.resize(image, size=image_size)
 
         keypoints = extractor.extract(image)
         fa = keypoints.features
