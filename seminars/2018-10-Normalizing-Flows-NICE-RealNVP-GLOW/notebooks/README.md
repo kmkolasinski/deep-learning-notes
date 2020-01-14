@@ -178,6 +178,7 @@ Here is an example of simple but not useful flow definition.
 be minor differences between my implementation and the paper one, but
 those should not affect the results significantly.
     ```python
+    sess = tf.InteractiveSession()
     images_ph = tf.placeholder(tf.float32, [16, 64, 64, 3])
     layers, actnorm_layers = nets.create_simple_flow(
         num_steps=32, # same as K
@@ -192,6 +193,16 @@ those should not affect the results significantly.
     reconstruction = model(output_flow, forward=False)
     # flow is a tuple of three tensors
     x, logdet, z = flow
+
+    # Initialize actnorm layers with Data Dependent Initialization (DDI)
+    sess.run(tf.global_variables_initializer())
+    beta_ph = tf.placeholder(tf.float32, [])
+    nets.initialize_actnorms(
+        sess,
+        feed_dict_fn=lambda: {beta_ph: 1.0},
+        actnorm_layers=actnorm_layers,
+        num_steps=10,
+)
     ```
 * Then define the cost and the optimizer and train model.
 * `actnorm_layers` contains a list of `ActnormLayer's` and can be used
