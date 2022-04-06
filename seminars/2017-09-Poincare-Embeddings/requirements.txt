@@ -4,7 +4,7 @@ Keras==2.0.6
 keras-tqdm==2.0.1
 matplotlib==2.0.2
 natsort==5.0.2
-notebook==5.7.8
+notebook==6.4.10
 numexpr==2.6.2
 numpy==1.13.0
 pandas==0.20.3
