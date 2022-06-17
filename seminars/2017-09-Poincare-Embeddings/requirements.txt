@@ -6,7 +6,7 @@ matplotlib==2.0.2
 natsort==5.0.2
 notebook==5.7.8
 numexpr==2.6.2
-numpy==1.13.0
+numpy==1.21.0
 pandas==0.20.3
 pandocfilters==1.4.1
 plotly==2.0.11
